@@ -1,77 +1,67 @@
 #include <iostream>
-#include <string>
+#include "../include/DropperClient.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <string.h>
+int main(int argc, char** argv) {
+	
+	if(argc != 4) {
 
-using namespace std;
+		cout << endl;
+		cout << "Você chamou o programa da maneira errada." << endl;
+		cout << "A forma correta é: ./client <nome-cliente> <ip-servidor> <porta-servidor>" << endl;
+		cout << endl;
+		return -1;
 
-const int bufferSize = 1024;
+	}
 
-int main(int argc, char* argv[]) {
+	DropperClient* client = new DropperClient(string(argv[1]), string(argv[2]), atoi(argv[3]));
+	
+	if(client->bad()) {
 
-	if(argc < 4) {
-
-		cout << "Uso: ./client [usuario] [IP_servidor] [porta_servidor]" << endl;
-		return 0;
+		cout << "Erro ao inicializar o cliente." << endl;
 
 	} else {
+	
+		if(!client->connect()) {
 
-		// argv[1] => nome do usuário
-		// argv[2] => IP do servidor
-		// argv[3] => Porta do servidor
-		cout << "Conectando usuario \"" << argv[1] << "\" ao servidor " << argv[2] << ":" << argv[3] << " ..." << endl;
+			cout << "Conexão recusada pelo servidor." << endl;
 
-		// Converte argv[2] no IP do servidor
-		in_addr_t ipsrv = inet_addr(argv[2]);
-		if(ipsrv == -1) {
-			cout << "Não foi possível converter " << argv[2] << " no IP do servidor" << endl;
-		}
-		
-		// Criação do socket do cliente
-		int clientSocket = socket(AF_INET, SOCK_DGRAM, 0);
-	    if (clientSocket == -1) {
-			cout << "Erro ao criar socket UDP do cliente." << endl;
-			return -1;
-		}
-			
-		// Inicialização das estruturas do socket
-		struct sockaddr_in serverAddress;
-		serverAddress.sin_family = AF_INET;
-		serverAddress.sin_port = htons(atoi(argv[3]));
-		serverAddress.sin_addr.s_addr = ipsrv;
-		bzero(&(serverAddress.sin_zero), 8);    
+		} else {
 
-		// Cria uma mensagem
-		char* buffer = new char[bufferSize];
-		bzero(buffer,bufferSize);
-		strcpy(buffer, "newsession ");
-		strcat(buffer, argv[1]);
+			cout << "Cliente inicializado com sucesso. Conexão aceita pelo servidor." << endl << endl;
+			cout << "Digite um comando e pressione enter.\nPara obter a lista de comandos, digite 'help'." << endl << "> ";
 
-		// Envia a mensagem
-		if(sendto(clientSocket, buffer, strlen(buffer), 0, (const struct sockaddr *) &serverAddress, sizeof(struct sockaddr_in)) < 0) {
+			string cmd;
 
-			cout << "Erro ao enviar pedido de conexão para o servidor." << endl;
-			close(clientSocket);
-			return -1;
+			while(getline(cin,cmd)) {
 
-		}
+				if(cmd == "quit") {
 
-		// Espera resposta do servidor
-		struct sockaddr_in from; socklen_t socketLength = sizeof(struct sockaddr_in);
-		bzero(buffer, bufferSize);
-		if(recvfrom(clientSocket, buffer, bufferSize, 0, (struct sockaddr *) &from, &socketLength)) {
+					if(client->closeSession()) cout << "Conexão com o servidor encerrada com sucesso." << endl;
+					else cout << "Problemas ao terminar conexão com o servidor." << endl;
+					break;
 
-			cout << "> Resposta do servidor: " << buffer << endl;
+				}
+				
+				if(cmd.substr(0,6) == "upload") {
+					
+					string file_path = cmd.substr(7);
+					if(client->sendFile(file_path)) cout << "Upload realizado com sucesso." << endl << "> ";
+					else cout << "Falha durante o upload. Tente novamente." << endl << "> ";
+					
+				}
+				
+				if(cmd.substr(0,8) == "download") {
+					
+					string file_path = cmd.substr(9);
+					if(client->getFile(file_path)) cout << "Download realizado com sucesso." << endl << "> ";
+					else cout << "Falha durante o download. Tente novamente." << endl << "> ";
+					
+				}
+
+			}
 
 		}
 
-		close(clientSocket);
 		return 0;
 
 	}

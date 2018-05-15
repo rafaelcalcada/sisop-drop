@@ -1,12 +1,39 @@
 #include <iostream>
-#include "../include/DropboxServer.h"
+#include <thread>
 
-int main(int argc, char* argv[]) {
-	
-	// cria uma instância do servidor e espera por pedidos de conexão de clientes
-	DropboxServer* server = new DropboxServer();
+#include "../include/DropperServer.h"
 
-	return 0;
+using namespace std;
+
+int main(int argc, char** argv) {
+
+	DropperServer* server = new DropperServer();
+	if(server->bad()) {
+		
+		cout << "Erro ao inicializar o servidor. Execução encerrada." << endl;
+		return 0;
+
+	} else {
+
+		string cmd;
+		cout << "Servidor inicializado com sucesso. Aguardando pedidos de conexão." << endl;
+		cout << "Para desligar o servidor, digite 'quit' e pressione enter." << endl << endl;
+
+		// dispara a thread que fica esperando conexões de clientes
+		std::thread listening_thread(&DropperServer::listen, server);
+
+		// espera comandos
+		while(cin >> cmd) {
+
+			if(cmd == "quit") {
+				listening_thread.detach();
+				break;
+			}
+
+			cout << "Comando inválido. Tente novamente." << endl;
+
+		}
+
+	}
 
 }
-
