@@ -41,6 +41,10 @@ int main(int argc, char** argv) {
 					break;
 
 				}
+				if(cmd == "help")
+				{
+				 (client->help());
+				}
 				
 				if(cmd.substr(0,6) == "upload") {
 					

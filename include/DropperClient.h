@@ -32,5 +32,6 @@ class DropperClient {
 		bool getFile(string file_name); // TODO Lógica reversa do send
 		bool deleteFile(string file_path);
 		bool closeSession(); // OK
+		void help();
 	
 };

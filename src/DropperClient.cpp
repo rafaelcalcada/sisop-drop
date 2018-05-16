@@ -23,6 +23,14 @@ DropperClient::DropperClient(string client_name, string server_ip, int server_po
 	}
 
 }
+void DropperClient::help(){
+  cout << "Ajuda:" << endl;
+  cout << "help: comando de ajuda com todos comandos" << endl;
+  cout << "download: faz o download de um arquivo no Dropbox. Sintaxe: nomedoarquivo /home/nomedousuario/pathtofile" << endl;
+  cout << "upload: faz o upload de um arquivo do Dropbox. Sintaxe: nomedoarquivo /home/nomedousuario/pathtofile"<< endl;
+  cout << "quit: sair do Dropbox." << endl;
+
+}
 
 bool DropperClient::connect() {
 
