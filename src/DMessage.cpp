@@ -8,6 +8,8 @@ DMessage::DMessage()
 
 DMessage::DMessage(char* content, int length)
 {
+	//char* newMessage = new char[length];
+	//memcpy(newMessage, content, length);
 	this->message = content;
 	this->_length = length;
 }

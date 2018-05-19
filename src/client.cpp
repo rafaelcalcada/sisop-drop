@@ -14,6 +14,10 @@ int main(int argc, char** argv)
 	DClient* client = new DClient(string(argv[1]));
 	if(client->bad()) cout << "DClient::DClient() - Erro ao inicializar o cliente." << endl;
 	else {
+		bool clientDirCreated = client->createSyncDir();
+		if(!clientDirCreated) {
+			cout << "DClient::createSyncDir() - Erro ao criar diretório do cliente." << endl;
+			return -1; }
 		bool clientConnected = client->connect(argv[2], atoi(argv[3]));
 		if(!clientConnected) {
 			cout << "DClient::connect() - Erro ao conectar cliente." << endl;
@@ -31,7 +35,12 @@ int main(int argc, char** argv)
 				string filePath = cmd.substr(7);
 				bool fileSent = client->sendFile(filePath);
 				if(fileSent) cout << "Upload realizado com sucesso." << endl << "> ";
-				else cout << "Falha durante o upload. Tente novamente." << endl << "> "; } }
+				else cout << "Falha durante o upload. Tente novamente." << endl << "> "; }
+			if(cmd.substr(0,8) == "download") {
+				string fileName = cmd.substr(9);
+				bool fileReceived = client->receiveFile(fileName);
+				if(fileReceived) cout << "Download realizado com sucesso." << endl << "> ";
+				else cout << "Falha durante o download. Tente novamente." << endl << "> "; } }
 		return 0; }
 }
 
