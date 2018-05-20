@@ -33,9 +33,7 @@ private:
 	DSocket* serverSocket;
 	bool isWorking;
 	string homeDir;
-	mutex mtx; // mutex que garante atomicidade para inclusões/remoções de 'clients'
-	mutex mtx2; // mutex que garante atomicidade da operação de preenchimento da lista de arquivos de clientes
-	mutex mtx3; // mutex que garante atomicidade da operação de atualização da lista de arquivos de clientes
+	mutex mtx; // mutex que garante atomicidade das operações de acesso, inclusão, exclusão e modificação da lista de arquivos de um cliente
 	
 public:
 	DServer(); // OK

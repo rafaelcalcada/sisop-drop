@@ -31,7 +31,10 @@ private:
 	string clientName;
 	string homeDir;
 	bool isWorking;
-	mutex mtx; // mutex que garante atomicidade da operação de atualização das listas de arquivos (inclusão, exclusão ou modificação);
+	// mutex usado pelo servidor para controle de concorrência entre clientes
+	mutex mtxClient;
+	// mutex que garante acesso exclusivo à conexão com o servidor (chamadas receiveFile, deleteFile, sendFile e listServerFiles são mutuamente exclusivas);
+	mutex mtxConn;
 	
 public:
 	DClient() { isWorking = false; } // OK
@@ -40,6 +43,7 @@ public:
 	DFile* findFile(list<DFile*>* fileList, string fileName); // OK
 	void help(); // OK
 	void listFiles(); // OK
+	void synchronize(); // OK
 	void fileUpdaterDaemon(); // OK
 	bool bad() { return !isWorking; } // OK
 	bool createSyncDir(); // OK
@@ -54,6 +58,7 @@ public:
 	bool fillFilesList(string basePath); // OK
 	bool updateFilesList(string newFileName, string basePath); // OK
 	bool listServerFiles(PrintOption printOnScreen); // OK
+	mutex* getMutex() { return &mtxClient; } // OK
 	list<DSocket*>* getConnectionsList() { return &connections; } // OK
 	list<DFile*>* getFilesList() { return &files; } // OK
 

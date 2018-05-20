@@ -22,12 +22,13 @@ int main(int argc, char** argv)
 		if(!clientConnected) {
 			cout << "DClient::connect() - Erro ao conectar cliente." << endl;
 			return -1; }
+		cout << "Cliente conectado com sucesso ao servidor." << endl << endl;
 		bool serverFilesListCreated = client->listServerFiles(DONT_PRINT);
 		if(!serverFilesListCreated) {
 			cout << "DClient::listServerFiles() - Erro ao obter lista de arquivos do cliente no servidor." << endl;
 			return -1; }
+		client->synchronize();
 		std::thread updater_daemon(&DClient::fileUpdaterDaemon, client);
-		cout << "Cliente conectado com sucesso ao servidor." << endl << endl;
 		cout << "Digite um comando e pressione enter.\nPara obter a lista de comandos, digite 'help'." << endl << "> ";
 		string cmd;
 		while(getline(cin,cmd)) {

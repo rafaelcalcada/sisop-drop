@@ -36,12 +36,8 @@ void DServer::initialize()
 			if(S_ISDIR(destat.st_mode)) {
 				string clientName(de->d_name);
 				DClient* newClient = new DClient(clientName);
-				mtx.lock();
 				clients.push_back(newClient);
-				mtx.unlock();
-				mtx2.lock();
-				newClient->fillFilesList("/dbox-server/" + clientName);
-				mtx2.unlock(); } } }
+				newClient->fillFilesList("/dbox-server/" + clientName); } } }
 	else if(mkdir(serverPath.c_str(), 0777) != 0) cout << "DServer::initialize() - Erro. Não conseguiu criar diretório raiz do servidor." << endl;
 }
 
@@ -74,9 +70,7 @@ void DServer::listen()
 				string clientPath = homeDir + "/dbox-server/" + clientName;
 				bool clientPathCreated = (mkdir(clientPath.c_str(), 0777) == 0);
 				if(clientPathCreated) {
-					mtx.lock();
 					clients.push_back(newClient);
-					mtx.unlock();
 					acceptConnection(newClient, serverSocket->getSenderIp(), serverSocket->getSenderPort()); }
 				else {
 					cout << "DServer::listen() - Erro ao criar diretório para novo cliente." << endl;
@@ -215,10 +209,8 @@ void DServer::deleteFile(DClient* client, DSocket* connection, DMessage* message
 		return; }
 	DMessage* removed = new DMessage("removed");
 	connection->reply(removed);
-	mtx2.lock();
 	client->getFilesList()->clear();
 	client->fillFilesList("/dbox-server/" + client->getName());
-	mtx2.unlock();
 	cout << "Arquivo deletado do servidor: " << fileName << ". Cliente: " << client->getName() << "." << endl;
 }
 
@@ -270,9 +262,7 @@ void DServer::receiveFile(DClient* client, DSocket* connection, DMessage* messag
 		cout << "DServer::receiveFile() - Erro. Não foi possível modificar a data da última modificação e acesso." << endl;
 		return; }
 	cout << "Arquivo recebido com sucesso. Cliente: " << client->getName() << ". Arquivo: " << fileName << "." << endl;
-	mtx3.lock();
 	client->updateFilesList(fileName, "/dbox-server/" + client->getName());
-	mtx3.unlock();
 }
 
 void DServer::listFiles(DClient* client, DSocket* connection, DMessage* message)
@@ -347,10 +337,8 @@ void DServer::clientsFileListUpdaterDaemon()
 		list<DClient*>::iterator it;
 		for(it = clients.begin(); it != clients.end(); it++) {
 			DClient* client = *(it);
-			mtx2.lock();
 			client->getFilesList()->clear();
-			client->fillFilesList("/dbox-server/" + client->getName());
-			mtx2.unlock(); }
+			client->fillFilesList("/dbox-server/" + client->getName()); }
 	}
 }
 
@@ -361,9 +349,21 @@ void DServer::messageProcessing(DClient* client, DSocket* connection)
 		connection->receive(&message);
 		if(message->toString() == "close connection") {
 			bool connectionClosed = closeConnection(client,connection);
-			if(connectionClosed) break;	}			 
-		if(message->toString().substr(0,7) == "receive") receiveFile(client, connection, message);
-		if(message->toString().substr(0,6) == "delete") deleteFile(client, connection, message);
-		if(message->toString().substr(0,4) == "send") sendFile(client, connection, message);
-		if(message->toString() == "list") listFiles(client, connection, message); }
+			if(connectionClosed) break;	}	 
+		if(message->toString().substr(0,7) == "receive") {
+			client->getMutex()->lock();
+			receiveFile(client, connection, message);
+			client->getMutex()->unlock(); }
+		if(message->toString().substr(0,6) == "delete") {
+			client->getMutex()->lock();
+			deleteFile(client, connection, message);
+			client->getMutex()->unlock(); }
+		if(message->toString().substr(0,4) == "send") {
+			client->getMutex()->lock();
+			sendFile(client, connection, message);
+			client->getMutex()->unlock(); }
+		if(message->toString() == "list") {
+			client->getMutex()->lock();
+			listFiles(client, connection, message);
+			client->getMutex()->unlock(); } }
 }
