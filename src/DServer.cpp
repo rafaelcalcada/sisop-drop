@@ -36,7 +36,12 @@ void DServer::initialize()
 			if(S_ISDIR(destat.st_mode)) {
 				string clientName(de->d_name);
 				DClient* newClient = new DClient(clientName);
-				clients.push_back(newClient); } } }
+				mtx.lock();
+				clients.push_back(newClient);
+				mtx.unlock();
+				mtx2.lock();
+				newClient->fillFilesList("/dbox-server/" + clientName);
+				mtx2.unlock(); } } }
 	else if(mkdir(serverPath.c_str(), 0777) != 0) cout << "DServer::initialize() - Erro. Não conseguiu criar diretório raiz do servidor." << endl;
 }
 
@@ -69,7 +74,9 @@ void DServer::listen()
 				string clientPath = homeDir + "/dbox-server/" + clientName;
 				bool clientPathCreated = (mkdir(clientPath.c_str(), 0777) == 0);
 				if(clientPathCreated) {
+					mtx.lock();
 					clients.push_back(newClient);
+					mtx.unlock();
 					acceptConnection(newClient, serverSocket->getSenderIp(), serverSocket->getSenderPort()); }
 				else {
 					cout << "DServer::listen() - Erro ao criar diretório para novo cliente." << endl;
@@ -124,7 +131,7 @@ int DServer::getAvailablePort()
 	return -1;
 }
 
-bool DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
+void DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 {
 	string fileName = message->toString().substr(5);
 	string filePath = homeDir + "/dbox-server/" + client->getName() + "/" + fileName;
@@ -133,23 +140,28 @@ bool DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 	if(!file.is_open()) {
 		DMessage* notFound = new DMessage("file not found");
 		connection->reply(notFound);
-		return false; }
+		return; }
 	file.seekg(0, file.end);
 	int fileSize = file.tellg();
 	file.seekg(0, file.beg);
+	struct stat fstat;
+	bool statSuccess = (stat(filePath.c_str(),&fstat) == 0);
+	if(!statSuccess) {
+		cout << "DServer::sendFile() - Erro. Não foi possível obter informações sobre a data de modificação do arquivo." << endl;
+		return; }
 	DMessage* prepareToReceive = new DMessage("send ack " + to_string(fileSize));
 	bool replySent = connection->reply(prepareToReceive);
 	if(!replySent) {
 		cout << "DServer::sendFile() - Erro ao enviar confirmação para envio de arquivo." << endl;
-		return false; }
+		return; }
 	DMessage* clientResponse = NULL;
 	bool clientResponseReceived = connection->receive(&clientResponse);
 	if(!clientResponseReceived) {
 		cout << "DServer::sendFile() - Erro. Resposta do cliente à confirmação para envio não recebida." << endl;
-		return false; }
+		return; }
 	if(clientResponse->toString() != "send ack ack") {
 		cout << "DServer::sendFile() - Erro. Cliente recusou recebimento do arquivo." << endl;
-		return false; }
+		return; }
 	int totalPackets = (int)((fileSize/BUFFER_SIZE)+1);
 	int lastPacketSize = fileSize%BUFFER_SIZE;
 	int packetsSent = 0;
@@ -166,19 +178,48 @@ bool DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 		bool packetSent = connection->reply(packet);
 		if(!packetSent) {
 			cout << "DServer::sendFile() - Erro ao enviar pacote para o servidor. Envio interrompido." << endl;
-			return false; }
+			return; }
 		DMessage* packetDeliveryStatus = NULL;
 		bool packetDeliveryResponseReceived = connection->receive(&packetDeliveryStatus);
 		if(!packetDeliveryResponseReceived) {
 			cout << "DServer::sendFile() - Erro. Confirmação de entrega de pacote não recebida. Envio interrompido." << endl;
-			return false; }
+			return; }
 		if(packetDeliveryStatus->toString() == "packet received") continue;
 		else {
 			cout << "DServer::sendFile() - Erro. Status de entrega de pacote desconhecido." << endl;
-			return false; } }
+			return; } }
 	file.close();
+	DMessage* lastModificationTime = new DMessage(to_string(fstat.st_mtim.tv_sec));
+	bool lmtSent = connection->reply(lastModificationTime);
+	if(!lmtSent) {
+		cout << "DServer::sendFile() - Erro ao informar o cliente sobre a data da última modificação do arquivo." << endl;
+		return; }
 	cout << "Envio de arquivo completo. Cliente: " << client->getName() << ". IP: " << inet_ntoa(connection->getDestinationIp()) << ". Arquivo: " << fileName << "." << endl;
-	return true;
+}
+
+void DServer::deleteFile(DClient* client, DSocket* connection, DMessage* message)
+{
+	string fileName = message->toString().substr(7);
+	string filePath = homeDir + "/dbox-server/" + client->getName() + "/" + fileName;
+	struct stat fstat;
+	bool statSuccess = (stat(filePath.c_str(),&fstat) == 0);
+	if(!statSuccess) {
+		DMessage* notFound = new DMessage("file not found");
+		connection->reply(notFound);
+		return; }
+	bool fileRemoved = (remove(filePath.c_str()) == 0);
+	if(!fileRemoved) {
+		cout << "DServer::deleteFile() - Erro ao excluir arquivo." << endl;
+		DMessage* error = new DMessage("error");
+		connection->reply(error);
+		return; }
+	DMessage* removed = new DMessage("removed");
+	connection->reply(removed);
+	mtx2.lock();
+	client->getFilesList()->clear();
+	client->fillFilesList("/dbox-server/" + client->getName());
+	mtx2.unlock();
+	cout << "Arquivo deletado do servidor: " << fileName << ". Cliente: " << client->getName() << "." << endl;
 }
 
 void DServer::receiveFile(DClient* client, DSocket* connection, DMessage* message)
@@ -215,8 +256,74 @@ void DServer::receiveFile(DClient* client, DSocket* connection, DMessage* messag
 			return; }
 		newFile.write(packet->get(),packet->length()); }
 	newFile.close();
+	DMessage* lastModificationTime = NULL;
+	bool lmtReceived = connection->receive(&lastModificationTime);
+	if(!lmtReceived) {
+		cout << "DServer::receiveFile() - Erro. Data da última modificação do arquivo não recebida." << endl;
+		return; }
+	time_t lmt = atol(lastModificationTime->toString().c_str());
+	struct utimbuf utb;
+	utb.actime = lmt;
+	utb.modtime = lmt;
+	bool modTimeChanged = (utime(filePath.c_str(),&utb) == 0);
+	if(!modTimeChanged) {
+		cout << "DServer::receiveFile() - Erro. Não foi possível modificar a data da última modificação e acesso." << endl;
+		return; }
 	cout << "Arquivo recebido com sucesso. Cliente: " << client->getName() << ". Arquivo: " << fileName << "." << endl;
-	// TODO: adicionar arquivo na file list do cliente
+	mtx3.lock();
+	client->updateFilesList(fileName, "/dbox-server/" + client->getName());
+	mtx3.unlock();
+}
+
+void DServer::listFiles(DClient* client, DSocket* connection, DMessage* message)
+{
+	int totalFiles = client->getFilesList()->size();	
+	if(totalFiles == 0) {
+		DMessage* emptyList = new DMessage("file list empty");
+		connection->reply(emptyList);
+		return; }
+	DMessage* listSize = new DMessage("list size " + to_string(totalFiles));
+	bool replySent = connection->reply(listSize);
+	if(!replySent) {
+		cout << "DServer::listFiles() - Erro. Resposta à requisição do cliente não enviada." << endl; 
+		return; }
+	DMessage* clientReply = NULL;
+	bool clientReplyReceived = connection->receive(&clientReply);
+	if(!clientReplyReceived) {
+		cout << "DServer::listFiles() - Erro. Resposta do cliente não recebida." << endl;
+		return; }
+	if(clientReply->toString() != "confirm") {
+		cout << "DServer::listFiles() - Erro. Cliente recusou recebimento da lista." << endl;
+		return; }
+	list<DFile*>::iterator it;
+	list<DFile*>* clientFiles = client->getFilesList();
+	for(it = clientFiles->begin(); it != clientFiles->end(); it++) {
+		DFile* clientFile = *(it);
+		DMessage* fileInfo = new DMessage(clientFile->getName() + " [" + to_string(clientFile->getSize()) + "," + to_string(clientFile->getLastModified()) + "]");
+		bool fileInfoSent = connection->reply(fileInfo);
+		if(!fileInfoSent) {
+			cout << "DServer::listFiles() - Erro ao enviar informações sobre arquivo." << endl;
+			return; }
+		DMessage* fileInfoSentReply = NULL;
+		bool fileInfoReceived = connection->receive(&fileInfoSentReply);
+		if(!fileInfoReceived) {
+			cout << "DServer::listFiles() - Erro. Não receber confirmação de recebimento de informações sobre arquivo." << endl;
+			return; }
+		if(fileInfoSentReply->toString() != "confirm") {
+			cout << "DServer::listFiles() - Erro. Cliente não confirmou recebimento de informações." << endl;
+			return; }
+	}
+}
+
+void DServer::listClientFiles(string clientName)
+{
+	DClient* client = findClient(clientName);
+	if(client == NULL) {
+		cout << "DServer::listClientFiles() - Erro. Cliente não encontrado." << endl;
+		return; }
+	cout << endl << "\e[1mArquivos do cliente " << clientName << "\e[0m" << endl << endl;
+	client->listFiles();
+	cout << endl;
 }
 
 bool DServer::closeConnection(DClient* client, DSocket* connection)
@@ -233,6 +340,20 @@ bool DServer::closeConnection(DClient* client, DSocket* connection)
 	return false;
 }
 
+void DServer::clientsFileListUpdaterDaemon()
+{
+	while(true) {
+		this_thread::sleep_for(chrono::seconds(5));
+		list<DClient*>::iterator it;
+		for(it = clients.begin(); it != clients.end(); it++) {
+			DClient* client = *(it);
+			mtx2.lock();
+			client->getFilesList()->clear();
+			client->fillFilesList("/dbox-server/" + client->getName());
+			mtx2.unlock(); }
+	}
+}
+
 void DServer::messageProcessing(DClient* client, DSocket* connection)
 {
 	while(true) {
@@ -242,5 +363,7 @@ void DServer::messageProcessing(DClient* client, DSocket* connection)
 			bool connectionClosed = closeConnection(client,connection);
 			if(connectionClosed) break;	}			 
 		if(message->toString().substr(0,7) == "receive") receiveFile(client, connection, message);
-		if(message->toString().substr(0,4) == "send") sendFile(client, connection, message); }
+		if(message->toString().substr(0,6) == "delete") deleteFile(client, connection, message);
+		if(message->toString().substr(0,4) == "send") sendFile(client, connection, message);
+		if(message->toString() == "list") listFiles(client, connection, message); }
 }

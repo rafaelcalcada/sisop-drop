@@ -5,6 +5,7 @@
 #include <fstream>
 #include <list>
 #include <thread>
+#include <mutex>
 #include <string>
 #include <cstring>
 
@@ -12,6 +13,7 @@
 #include "DSocket.h"
 
 #include <sys/stat.h>
+#include <utime.h>
 #include <dirent.h>
 #include <pwd.h>
 
@@ -31,19 +33,26 @@ private:
 	DSocket* serverSocket;
 	bool isWorking;
 	string homeDir;
+	mutex mtx; // mutex que garante atomicidade para inclusões/remoções de 'clients'
+	mutex mtx2; // mutex que garante atomicidade da operação de preenchimento da lista de arquivos de clientes
+	mutex mtx3; // mutex que garante atomicidade da operação de atualização da lista de arquivos de clientes
 	
 public:
 	DServer(); // OK
-	DClient* findClient(string clientName);
+	DClient* findClient(string clientName); // OK
 	bool bad() { return !isWorking; } // OK
-	void listen();
-	void acceptConnection(DClient* client, struct in_addr clientIp, unsigned short clientPort);
-	bool closeConnection(DClient* client, DSocket* connection);
-	void messageProcessing(DClient* client, DSocket* connection);
+	void listen(); // OK
+	void acceptConnection(DClient* client, struct in_addr clientIp, unsigned short clientPort); // OK
+	bool closeConnection(DClient* client, DSocket* connection); // OK
+	void messageProcessing(DClient* client, DSocket* connection); // OK
 	void initialize(); // OK
-	bool sendFile(DClient* client, DSocket* connection, DMessage* message);
-	void receiveFile(DClient* client, DSocket* connection, DMessage* message);
-	int getAvailablePort();
+	void sendFile(DClient* client, DSocket* connection, DMessage* message); // OK
+	void receiveFile(DClient* client, DSocket* connection, DMessage* message); // OK
+	void deleteFile(DClient* client, DSocket* connection, DMessage* message); // OK
+	void listFiles(DClient* client, DSocket* connection, DMessage* message); // OK
+	void listClientFiles(string clientName); // OK
+	void clientsFileListUpdaterDaemon(); // OK
+	int getAvailablePort(); // OK
 
 };
 
