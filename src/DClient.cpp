@@ -60,7 +60,7 @@ void DClient::help()
 	cout << "\e[1mdelete\e[0m\nExclui um arquivo do servidor DBox.\nSintaxe: delete [filename]" << endl << endl;
 	cout << "\e[1mlistclient\e[0m\nLista os arquivos do cliente no diretório local (sync_dir_[clientname])."<< endl << endl;
 	cout << "\e[1mlistserver\e[0m\nLista os arquivos do cliente salvos no servidor." << endl << endl;
-	cout << "\e[1mquit\n\e[0mEncerra a conexão com o servidor e fecha o DBox." << endl << endl << "> ";
+	cout << "\e[1mquit\n\e[0mEncerra a conexão com o servidor e fecha o DBox." << endl << endl;
 }
 
 bool DClient::isConnectedFrom(struct in_addr ipAddress)
@@ -351,7 +351,7 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 		cout << "DClient::listServerFiles() - Erro. Resposta do servidor não recebida." << endl;
 		return false; }
 	if(serverReply->toString() == "file list empty") {
-		if(printOnScreen == PRINT) cout << "Resposta do servidor: diretório vazio." << endl << "> ";
+		if(printOnScreen == PRINT) cout << "Resposta do servidor: diretório vazio." << endl;
 		return true; }
 	if(serverReply->toString().substr(0,9) != "list size") {
 		cout << "DClient::listServerFiles() - Erro. Servidor mandou mensagem desconhecida." << endl;
@@ -387,7 +387,7 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 		for(it = serverFiles.begin(); it != serverFiles.end(); it++) {
 			DFile* file = *(it);
 			cout << "\e[1m" << file->getName() << "\e[0m - " << file->printLastModified(); }
-		cout << endl << "> "; }
+		cout << endl; }
 	return true;
 }
 

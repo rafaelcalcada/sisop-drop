@@ -14,6 +14,7 @@ int main()
 		cout << "Para desligar o servidor, digite 'quit' e pressione enter." << endl << endl;
 		std::thread listening_thread(&DServer::listen, server);
 		while(getline(cin,cmd)) {
+			if(cmd == "") continue;
 			if(cmd == "quit") {
 				listening_thread.detach();
 				break; }
