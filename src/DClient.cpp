@@ -418,8 +418,10 @@ DFile* DClient::findFile(list<DFile*>* fileList, string fileName)
 void DClient::synchronize()
 {
 	cout << "Sincronizando diretório local com o servidor..." << endl;
-	list<DFile*>::iterator it;
-	for(it = serverFiles.begin(); it != serverFiles.end(); it++) {
+	list<DFile*>::iterator it; int i = 0;
+	list<DFile*> serverFilesCopy = serverFiles;
+	list<DFile*> filesCopy = files;
+	for(it = serverFilesCopy.begin(); it != serverFilesCopy.end(); it++) {
 		DFile* sfile = *(it);
 		DFile* cfile = findFile(&files,sfile->getName());
 		if(cfile == NULL) {
@@ -437,15 +439,15 @@ void DClient::synchronize()
 				this->getMutex()->unlock();
 				if(!fileDownloaded) cout << "Erro." << endl; else cout << "Concluído." << endl; } }
 	}
-	for(it = files.begin(); it != files.end(); it++) {
+	for(it = filesCopy.begin(); it != filesCopy.end(); it++) {
 		DFile* cfile = *(it);
 		DFile* sfile = findFile(&serverFiles,cfile->getName());
 		if(sfile == NULL) {
-			cout << "Arquivo removido do servidor. Excluindo do diretório local... ";
+			cout << "Arquivo removido do servidor: " << cfile->getName() << ". Excluindo... ";
 			this->getMutex()->lock();
 			bool localFileRemoved = this->deleteLocalFile(cfile->getName());
 			this->getMutex()->unlock();
-			if(!localFileRemoved) cout << "Erro." << endl; else cout << "Concluído."; }
+			if(!localFileRemoved) cout << "Erro." << endl; else cout << "Concluído." << endl; }
 	}
 	cout << "Sincronização concluída." << endl << endl;
 }
@@ -459,10 +461,7 @@ void DClient::fileUpdaterDaemon()
 		serverFiles.clear();
 		bool serverFilesListCreated = this->listServerFiles(DONT_PRINT);
 		this->getMutex()->unlock();
-		if(!serverFilesListCreated) {
-			cout << "DClient::fileUpdaterDaemon() - Erro ao recriar lista de arquivos do servidor. Estado anterior restaurado." << endl;
-			serverFiles = oldServerFilesList;
-			continue; }
+		if(!serverFilesListCreated)	serverFiles = oldServerFilesList; continue;
 		list<DFile*>::iterator it;
 		for(it = serverFiles.begin(); it != serverFiles.end(); it++) {
 			DFile* nfile = *(it);

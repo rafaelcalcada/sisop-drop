@@ -272,34 +272,22 @@ void DServer::listFiles(DClient* client, DSocket* connection, DMessage* message)
 		return; }
 	DMessage* listSize = new DMessage("list size " + to_string(totalFiles));
 	bool replySent = connection->reply(listSize);
-	if(!replySent) {
-		cout << "DServer::listFiles() - Erro. Resposta à requisição do cliente não enviada." << endl; 
-		return; }
+	if(!replySent) return;
 	DMessage* clientReply = NULL;
 	bool clientReplyReceived = connection->receive(&clientReply);
-	if(!clientReplyReceived) {
-		cout << "DServer::listFiles() - Erro. Resposta do cliente não recebida." << endl;
-		return; }
-	if(clientReply->toString() != "confirm") {
-		cout << "DServer::listFiles() - Erro. Cliente recusou recebimento da lista." << endl;
-		return; }
+	if(!clientReplyReceived) return;
+	if(clientReply->toString() != "confirm") return;
 	list<DFile*>::iterator it;
 	list<DFile*>* clientFiles = client->getFilesList();
 	for(it = clientFiles->begin(); it != clientFiles->end(); it++) {
 		DFile* clientFile = *(it);
 		DMessage* fileInfo = new DMessage(clientFile->getName() + " [" + to_string(clientFile->getSize()) + "," + to_string(clientFile->getLastModified()) + "]");
 		bool fileInfoSent = connection->reply(fileInfo);
-		if(!fileInfoSent) {
-			cout << "DServer::listFiles() - Erro ao enviar informações sobre arquivo." << endl;
-			return; }
+		if(!fileInfoSent) return;
 		DMessage* fileInfoSentReply = NULL;
 		bool fileInfoReceived = connection->receive(&fileInfoSentReply);
-		if(!fileInfoReceived) {
-			cout << "DServer::listFiles() - Erro. Não receber confirmação de recebimento de informações sobre arquivo." << endl;
-			return; }
-		if(fileInfoSentReply->toString() != "confirm") {
-			cout << "DServer::listFiles() - Erro. Cliente não confirmou recebimento de informações." << endl;
-			return; }
+		if(!fileInfoReceived) return;
+		if(fileInfoSentReply->toString() != "confirm") return;
 	}
 }
 
