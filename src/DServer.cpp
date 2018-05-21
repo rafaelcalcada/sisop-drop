@@ -20,9 +20,7 @@ DServer::DServer()
 
 void DServer::initialize()
 {
-	const char *aux;
-	if((aux = getenv("HOME")) == NULL) aux = getpwuid(getuid())->pw_dir;
-	this->homeDir = string(aux);
+	this->homeDir = string("/tmp");
 	string serverPath = homeDir + "/dbox-server";
 	struct stat st;
 	if(stat(serverPath.c_str(), &st) != -1) {

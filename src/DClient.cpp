@@ -2,9 +2,7 @@
 
 DClient::DClient(string clientName)
 {
-	const char *aux;
-	if((aux = getenv("HOME")) == NULL) aux = getpwuid(getuid())->pw_dir;
-	this->homeDir = string(aux);
+	this->homeDir = string("/tmp");
 	this->clientName = clientName;
 	clientSocket = new DSocket();
 	bool socketOpen = clientSocket->isOpen();
@@ -417,7 +415,7 @@ DFile* DClient::findFile(list<DFile*>* fileList, string fileName)
 
 void DClient::synchronize()
 {
-	cout << "Sincronizando diretório local com o servidor..." << endl;
+	//cout << "Sincronizando diretório local com o servidor..." << endl;
 	list<DFile*>::iterator it; int i = 0;
 	list<DFile*> serverFilesCopy = serverFiles;
 	list<DFile*> filesCopy = files;
@@ -449,7 +447,7 @@ void DClient::synchronize()
 			this->getMutex()->unlock();
 			if(!localFileRemoved) cout << "Erro." << endl; else cout << "Concluído." << endl; }
 	}
-	cout << "Sincronização concluída." << endl << endl;
+	//cout << "Sincronização concluída." << endl << endl;
 }
 
 void DClient::fileUpdaterDaemon()
@@ -457,41 +455,8 @@ void DClient::fileUpdaterDaemon()
 	while(true) {
 		this_thread::sleep_for(chrono::seconds(5));
 		this->getMutex()->lock();
-		list<DFile*> oldServerFilesList = serverFiles;
-		serverFiles.clear();
-		bool serverFilesListCreated = this->listServerFiles(DONT_PRINT);
+		this->listServerFiles(DONT_PRINT);
 		this->getMutex()->unlock();
-		if(!serverFilesListCreated)	serverFiles = oldServerFilesList; continue;
-		list<DFile*>::iterator it;
-		for(it = serverFiles.begin(); it != serverFiles.end(); it++) {
-			DFile* nfile = *(it);
-			DFile* ofile = findFile(&oldServerFilesList,nfile->getName());
-			if(ofile == NULL) {
-				cout << endl << endl << "Arquivo adicionado ao servidor por outro dispositivo.\nFazendo download..." << endl;
-				this->getMutex()->lock();
-				bool fileDownloaded = this->receiveFile(nfile->getName());
-				this->getMutex()->unlock();
-				if(!fileDownloaded) cout << "DClient::fileUpdaterDaemon() - Erro ao sincronizar cliente e servidor (erro no download do arquivo: " << nfile->getName() << ")." << endl;
-				else cout << "Download concluído: " << nfile->getName() << endl << endl << "> "; }
-			else {
-				bool fileIsEqual = ofile->isEqual(nfile);
-				if(!fileIsEqual) {
-					cout << endl << endl << "Arquivo modificado no servidor por outro dispositivo.\nFazendo download da versão mais recente..." << endl;
-					this->getMutex()->lock();
-					bool fileDownloaded = this->receiveFile(nfile->getName());
-					this->getMutex()->unlock();
-					if(!fileDownloaded) cout << "DClient::fileUpdaterDaemon() - Erro ao sincronizar cliente e servidor (erro no download do arquivo: " << nfile->getName() << ")." << endl;
-					else cout << "Download concluído: " << nfile->getName() << endl << endl << "> "; } } }
-		for(it = oldServerFilesList.begin(); it != oldServerFilesList.end(); it++) {
-			DFile* ofile = *(it);
-			DFile* afile = findFile(&serverFiles,ofile->getName());
-			if(afile == NULL) {
-				cout << endl << endl << "Arquivo excluído do servidor por outro dispositivo.\nRemovendo cópia local..." << endl;
-				this->getMutex()->lock();
-				bool localFileRemoved = this->deleteLocalFile(ofile->getName());
-				this->getMutex()->unlock();
-				if(!localFileRemoved) cout << "DCliente::fileUpdaterDaemon() - Erro ao sincronizar cliente e servidor (falha ao remover arquivo: " << ofile->getName() << ")." << endl;
-				else cout << "Arquivo removido: " << ofile->getName() << "." << endl << endl << "> "; } }
-		cout.flush();
+		this->synchronize();
 	}
 }
