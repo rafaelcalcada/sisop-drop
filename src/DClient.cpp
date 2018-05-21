@@ -423,29 +423,29 @@ void DClient::synchronize()
 		DFile* sfile = *(it);
 		DFile* cfile = findFile(&files,sfile->getName());
 		if(cfile == NULL) {
-			cout << "Fazendo download do arquivo (novo): " << sfile->getName() << "... ";
+			cout << endl << "Fazendo download do arquivo (novo): " << sfile->getName() << "... ";
 			this->getMutex()->lock();
 			bool fileDownloaded = this->receiveFile(sfile->getName());
 			this->getMutex()->unlock();
-			if(!fileDownloaded) cout << "Erro." << endl; else cout << "Concluído." << endl; }
+			if(!fileDownloaded) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; }
 		else {
 			bool fileIsEqual = sfile->isEqual(cfile);
 			if(!fileIsEqual) {
-				cout << "Fazendo download do arquivo (modificado): " << sfile->getName() << "... ";
+				cout << endl << "Fazendo download do arquivo (modificado): " << sfile->getName() << "... ";
 				this->getMutex()->lock();
 				bool fileDownloaded = this->receiveFile(sfile->getName());
 				this->getMutex()->unlock();
-				if(!fileDownloaded) cout << "Erro." << endl; else cout << "Concluído." << endl; } }
+				if(!fileDownloaded) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; } }
 	}
 	for(it = filesCopy.begin(); it != filesCopy.end(); it++) {
 		DFile* cfile = *(it);
 		DFile* sfile = findFile(&serverFiles,cfile->getName());
 		if(sfile == NULL) {
-			cout << "Arquivo removido do servidor: " << cfile->getName() << ". Excluindo... ";
+			cout << endl << "Arquivo removido do servidor: " << cfile->getName() << ". Excluindo... ";
 			this->getMutex()->lock();
 			bool localFileRemoved = this->deleteLocalFile(cfile->getName());
 			this->getMutex()->unlock();
-			if(!localFileRemoved) cout << "Erro." << endl; else cout << "Concluído." << endl; }
+			if(!localFileRemoved) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; }
 	}
 	//cout << "Sincronização concluída." << endl << endl;
 }
