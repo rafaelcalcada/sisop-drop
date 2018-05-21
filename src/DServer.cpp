@@ -55,9 +55,7 @@ void DServer::listen()
 	DMessage* connectionRequest = NULL;
 	while(true) {
 		bool requestReceived = serverSocket->receive(&connectionRequest);
-		if(!requestReceived) {
-			cout << "DServer::listen() - Erro durante recebimento de pedido de conexão." << endl;
-			continue; }
+		if(!requestReceived) continue;
 		if(connectionRequest->toString().substr(0,7) == "connect") {
 			string clientName = connectionRequest->toString().substr(8, connectionRequest->toString().size());
 			DClient* client = findClient(clientName);
@@ -330,40 +328,30 @@ bool DServer::closeConnection(DClient* client, DSocket* connection)
 	return false;
 }
 
-void DServer::clientsFileListUpdaterDaemon()
-{
-	while(true) {
-		this_thread::sleep_for(chrono::seconds(5));
-		list<DClient*>::iterator it;
-		for(it = clients.begin(); it != clients.end(); it++) {
-			DClient* client = *(it);
-			client->getFilesList()->clear();
-			client->fillFilesList("/dbox-server/" + client->getName()); }
-	}
-}
-
 void DServer::messageProcessing(DClient* client, DSocket* connection)
 {
 	while(true) {
 		DMessage* message = NULL;
-		connection->receive(&message);
-		if(message->toString() == "close connection") {
-			bool connectionClosed = closeConnection(client,connection);
-			if(connectionClosed) break;	}	 
-		if(message->toString().substr(0,7) == "receive") {
-			client->getMutex()->lock();
-			receiveFile(client, connection, message);
-			client->getMutex()->unlock(); }
-		if(message->toString().substr(0,6) == "delete") {
-			client->getMutex()->lock();
-			deleteFile(client, connection, message);
-			client->getMutex()->unlock(); }
-		if(message->toString().substr(0,4) == "send") {
-			client->getMutex()->lock();
-			sendFile(client, connection, message);
-			client->getMutex()->unlock(); }
-		if(message->toString() == "list") {
-			client->getMutex()->lock();
-			listFiles(client, connection, message);
-			client->getMutex()->unlock(); } }
+		bool messageReceived = connection->receive(&message);
+		if(messageReceived) {
+			if(message->toString() == "close connection") {
+				bool connectionClosed = closeConnection(client,connection);
+				if(connectionClosed) break;	}	 
+			if(message->toString().substr(0,7) == "receive") {
+				client->getMutex()->lock();
+				receiveFile(client, connection, message);
+				client->getMutex()->unlock(); }
+			if(message->toString().substr(0,6) == "delete") {
+				client->getMutex()->lock();
+				deleteFile(client, connection, message);
+				client->getMutex()->unlock(); }
+			if(message->toString().substr(0,4) == "send") {
+				client->getMutex()->lock();
+				sendFile(client, connection, message);
+				client->getMutex()->unlock(); }
+			if(message->toString() == "list") {
+				client->getMutex()->lock();
+				listFiles(client, connection, message);
+				client->getMutex()->unlock(); } }
+		else continue; }
 }

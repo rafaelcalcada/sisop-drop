@@ -40,23 +40,33 @@ int main(int argc, char** argv)
 			if(cmd == "help") client->help();
 			if(cmd.substr(0,6) == "upload") {
 				string filePath = cmd.substr(7);
+				client->getMutex()->lock();
 				bool fileSent = client->sendFile(filePath);
+				client->getMutex()->unlock();
 				if(fileSent) cout << endl << "Upload realizado com sucesso." << endl << endl << "> ";
 				else cout << endl << "Falha durante o upload. Tente novamente." << endl << endl << "> "; }
 			if(cmd.substr(0,8) == "download") {
 				string fileName = cmd.substr(9);
+				client->getMutex()->lock();
 				bool fileReceived = client->receiveFile(fileName);
+				client->getMutex()->unlock();
 				if(fileReceived) cout << endl << "Download realizado com sucesso." << endl << endl << "> ";
 				else cout << endl << "Falha durante o download. Tente novamente." << endl << endl << "> "; }
 			if(cmd.substr(0,10) == "listclient") {
 				cout << endl << "\e[1mArquivos neste dispositivo:\e[0m" << endl << endl;
+				client->getMutex()->lock();
 				client->listFiles();
+				client->getMutex()->unlock();
 				cout << endl << "> "; }
 			if(cmd.substr(0,10) == "listserver") {
-				bool serverFilesListReceived = client->listServerFiles(PRINT); }
+				client->getMutex()->lock();
+				bool serverFilesListReceived = client->listServerFiles(PRINT);
+				client->getMutex()->unlock(); }
 			if(cmd.substr(0,6) == "delete") {
 				string filePath = cmd.substr(7);
+				client->getMutex()->lock();
 				bool fileRemoved = client->deleteFile(filePath);
+				client->getMutex()->unlock();
 				if(fileRemoved) cout << endl << "Arquivo excluído com sucesso do cliente e do servidor." << endl << endl << "> ";
 				else cout << endl << "Falha ao excluir arquivo. Tente novamente." << endl << endl << "> "; } }
 		return 0; }

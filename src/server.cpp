@@ -13,15 +13,15 @@ int main()
 		cout << "Servidor inicializado com sucesso." << endl;
 		cout << "Para desligar o servidor, digite 'quit' e pressione enter." << endl << endl;
 		std::thread listening_thread(&DServer::listen, server);
-		std::thread filelist_updater(&DServer::clientsFileListUpdaterDaemon, server);
 		while(getline(cin,cmd)) {
 			if(cmd == "quit") {
 				listening_thread.detach();
-				filelist_updater.detach();
 				break; }
 			if(cmd.substr(0,10) == "listclient") { 
-				server->listClientFiles(cmd.substr(11));
+				if(cmd.size() >= 12) {
+				server->listClientFiles(cmd.substr(11)); 
 				continue; }
+				else cout << "Comando inválido. Sintaxe: listclient [clientname]." << endl; continue; }
 			cout << "Comando inválido. Tente novamente." << endl; } }
 	return 0;
 }

@@ -3,6 +3,11 @@
 DSocket::DSocket()
 {
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
+	struct timeval timeout;      
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) cout << "Erro ao estabelecer timeout para receive." << endl;
+    if(setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) cout << "Erro ao estabelecer timeout para send." << endl;
 	if(sock == -1) _isOpen = false;
 	else _isOpen = true;
 }
@@ -49,18 +54,14 @@ bool DSocket::setDestination(const char* ipAddress, int portNumber)
 bool DSocket::send(DMessage* message)
 {
 	int flag = sendto(sock, (const void*) message->get(), (size_t) message->length(), 0, (struct sockaddr *) &destAddress, sizeof(struct sockaddr));
-	if(flag < 0) { // significa que um erro ocorreu
-		cout << "DSocket::send() - Erro. Não foi possível enviar a mensagem." << endl;
-		return false; }
+	if(flag < 0) return false;
 	else return true;
 }
 
 bool DSocket::reply(DMessage* message)
 {
 	int flag = sendto(sock, (const void*) message->get(), (size_t) message->length(), 0, (struct sockaddr *) &senderAddress, sizeof(struct sockaddr));
-	if(flag < 0) { // significa que um erro ocorreu
-		cout << "DSocket::reply() - Erro. Não foi possível responder a mensagem." << endl;
-		return false; }
+	if(flag < 0) return false;
 	else return true;
 }
 
@@ -68,9 +69,7 @@ bool DSocket::receive(DMessage** message) {
 	char* msgBuffer = new char[BUFFER_SIZE];
 	socklen_t sockAddressSize = sizeof(struct sockaddr);
 	int msgSize = recvfrom(sock, (void*) msgBuffer, BUFFER_SIZE, 0, (struct sockaddr *) &senderAddress, &sockAddressSize);
-	if(msgSize < 0) {
-		cout << "DSocket::receive() - Erro. Não foi possível receber corretamente a mensagem." << endl;
-		return false; }
+	if(msgSize < 0) return false;
 	else {
 		*message = new DMessage(msgBuffer, msgSize);
 		return true;

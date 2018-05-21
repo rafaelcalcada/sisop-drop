@@ -104,12 +104,10 @@ bool DClient::connect(const char* serverAddress, int serverPort)
 
 bool DClient::sendFile(string filePath)
 {
-	mtxConn.lock();
 	ifstream file;
 	file.open(filePath, ifstream::in | ifstream::binary);
 	if(!file.is_open()) {
 		cout << "Erro: arquivo não encontrado." << endl;
-		mtxConn.unlock();
 		return false; }
 	file.seekg(0, file.end); 
 	int fileSize = file.tellg();
@@ -118,24 +116,20 @@ bool DClient::sendFile(string filePath)
 	bool statSuccess = (stat(filePath.c_str(),&fstat) == 0);
 	if(!statSuccess) {
 		cout << "DClient::sendFile() - Erro. Não foi possível obter informações sobre a data de modificação do arquivo." << endl;
-		mtxConn.unlock();
 		return false; }
 	string fileName = filePath.substr(filePath.find_last_of("/")+1);
 	DMessage* sendRequest = new DMessage("receive " + fileName + " " + to_string(fileSize));
 	bool requestSent = clientSocket->send(sendRequest);
 	if(!requestSent) {
 		cout << "DClient::sendFile() - Erro. Requisição de envio não enviada." << endl;
-		mtxConn.unlock();
 		return false; }
 	DMessage* serverReply = NULL;
 	bool replyReceived = clientSocket->receive(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::sendFile() - Erro ao receber resposta da requisição." << endl;
-		mtxConn.unlock();
 		return false; }
 	if(serverReply->toString() != "receive ack") {
 		cout << "Erro. Servidor recusou recebimento do arquivo." << endl;
-		mtxConn.unlock();
 		return false; }
 	int totalPackets = (int)((fileSize/BUFFER_SIZE)+1);
 	int lastPacketSize = fileSize%BUFFER_SIZE;
@@ -153,31 +147,26 @@ bool DClient::sendFile(string filePath)
 		bool packetSent = clientSocket->send(packet);
 		if(!packetSent) {
 			cout << "DClient::sendFile() - Erro ao enviar pacote para o servidor. Envio interrompido." << endl;
-			mtxConn.unlock();
 			return false; }
 		DMessage* packetDeliveryStatus = NULL;
 		bool packetDeliveryResponseReceived = clientSocket->receive(&packetDeliveryStatus);
 		if(!packetDeliveryResponseReceived) {
 			cout << "DClient::sendFile() - Erro. Confirmação de entrega de pacote não recebida. Envio interrompido." << endl;
-			mtxConn.unlock();
 			return false; }
 		if(packetDeliveryStatus->toString() == "packet received") continue;
 		else {
 			cout << "DClient::sendFile() - Erro. Status de entrega de pacote desconhecido." << endl;
-			mtxConn.unlock();
 			return false; } }
 	DMessage* lastModificationTime = new DMessage(to_string(fstat.st_mtim.tv_sec));
 	bool lmtSent = clientSocket->send(lastModificationTime);
 	if(!lmtSent) {
 		cout << "DClient::sendFile() - Erro ao informar o servidor sobre a data da última modificação do arquivo." << endl;
-		mtxConn.unlock();
 		return false; }
 	ofstream fileCopy;
 	string fileCopyPath = homeDir + "/sync_dir_" + clientName + "/" + fileName;
 	fileCopy.open(fileCopyPath, ofstream::trunc | ofstream::binary);
 	if(!fileCopy.is_open()) {
 		cout << "DClient::sendFile() - Erro ao salvar cópia local no diretório do cliente." << endl;
-		mtxConn.unlock();
 		return false; }
 	file.seekg(0, file.beg);
 	fileCopy << file.rdbuf();
@@ -189,16 +178,13 @@ bool DClient::sendFile(string filePath)
 	bool modTimeChanged = (utime(fileCopyPath.c_str(),&utb) == 0);
 	if(!modTimeChanged) {
 		cout << "DClient::sendFile() - Erro. Não foi possível modificar a data da última modificação e acesso." << endl;
-		mtxConn.unlock();
 		return false; }
 	;
 	bool fileListUpdated = this->updateFilesList(fileName, "/sync_dir_" + clientName);
 	;
 	if(!fileListUpdated) {
 		cout << "DClient::sendFile() - Erro. Lista de arquivos locais não atualizada." << endl;
-		mtxConn.unlock();
 		return false; }
-	mtxConn.unlock();
 	return true;
 }
 
@@ -229,26 +215,21 @@ bool DClient::updateFilesList(string newFileName, string basePath)
 
 bool DClient::receiveFile(string fileName)
 {
-	mtxConn.lock();
 	DMessage* receiveRequest = new DMessage("send " + fileName);
 	bool requestSent = clientSocket->send(receiveRequest);
 	if(!requestSent) {
 		cout << "DClient::receiveFile() - Erro. Requisição de recebimento não enviada." << endl;
-		mtxConn.unlock();
 		return false; }
 	DMessage* serverReply = NULL;
 	bool replyReceived = clientSocket->receive(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::receiveFile() - Erro. Resposta do servidor não recebida." << endl;
-		mtxConn.unlock();
 		return false; }
 	if(replyReceived && serverReply->toString() == "file not found") {
 		cout << "Resposta do servidor: Arquivo não encontrado." << endl;
-		mtxConn.unlock();
 		return false; }
 	if(replyReceived && serverReply->toString().substr(0,8) != "send ack") {
 		cout << "DClient::receiveFile() - Erro. Resposta desconhecida." << endl;
-		mtxConn.unlock();
 		return false; }
 	int fileSize = atoi(serverReply->toString().substr(9).c_str());
 	string filePath = homeDir + "/sync_dir_" + clientName + "/" + fileName;
@@ -256,13 +237,11 @@ bool DClient::receiveFile(string fileName)
 	newFile.open(filePath, ofstream::trunc | ofstream::binary);
 	if(!newFile.is_open()) {
 		cout << "DClient::receiveFile() - Erro ao receber arquivo. Não foi possível criar cópia local." << endl;
-		mtxConn.unlock();
 		return false; }
 	DMessage* confirm = new DMessage("send ack ack");
 	bool confirmationSent = clientSocket->send(confirm);
 	if(!confirmationSent) {
 		cout << "DClient::receiveFile() - Erro. Confirmação para recebimento não enviada." << endl;
-		mtxConn.unlock();
 		return false; }
 	int totalPackets = (int)((fileSize/BUFFER_SIZE)+1);
 	int packetsReceived = 0;
@@ -274,14 +253,12 @@ bool DClient::receiveFile(string fileName)
 		if(!packetReceived) {
 			cout << "DClient::receiveFile() - Erro ao receber pacote do arquivo. Recebimento interrompido." << endl;
 			newFile.close();
-			mtxConn.unlock();
 			return false; }
 		DMessage* confirmation = new DMessage("packet received");
 		bool confirmationSent = clientSocket->reply(confirmation);
 		if(!confirmationSent) {
 			cout << "DClient::receiveFile() - Erro ao enviar confirmação de recebimento de pacote de dados. Recebimento interrompido." << endl;
 			newFile.close();
-			mtxConn.unlock();
 			return false; }
 		newFile.write(packet->get(),packet->length()); }
 	newFile.close();
@@ -289,7 +266,6 @@ bool DClient::receiveFile(string fileName)
 	bool lmtReceived = clientSocket->receive(&lastModificationTime);
 	if(!lmtReceived) {
 		cout << "DClient::receiveFile() - Erro. Data da última modificação do arquivo não recebida." << endl;
-		mtxConn.unlock();
 		return false; }
 	time_t lmt = atol(lastModificationTime->toString().c_str());
 	struct utimbuf utb;
@@ -298,16 +274,13 @@ bool DClient::receiveFile(string fileName)
 	bool modTimeChanged = (utime(filePath.c_str(),&utb) == 0);
 	if(!modTimeChanged) {
 		cout << "DClient::receiveFile() - Erro. Não foi possível modificar a data da última modificação e acesso." << endl;
-		mtxConn.unlock();
 		return false; }
 	;
 	bool fileListUpdated = this->updateFilesList(fileName, "/sync_dir_" + clientName);
 	;
 	if(!fileListUpdated) {
 		cout << "DClient::receiveFile() - Erro. Lista de arquivos locais não atualizada." << endl;
-		mtxConn.unlock();
 		return false; }
-	mtxConn.unlock();
 	return true;
 }
 
@@ -337,28 +310,23 @@ bool DClient::deleteLocalFile(string fileName)
 
 bool DClient::deleteFile(string fileName)
 {
-	mtxConn.lock();
 	bool localFileRemoved = this->deleteLocalFile(fileName);
 	if(!localFileRemoved) return false;
 	DMessage* deleteRequest = new DMessage("delete " + fileName);
 	bool requestSent = clientSocket->send(deleteRequest);
 	if(!requestSent) {
 		cout << "DClient::deleteFile() - Erro. Requisição de exclusão não enviada." << endl;
-		mtxConn.unlock();
 		return false; }
 	DMessage* serverReply = NULL;
 	bool replyReceived = clientSocket->receive(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::deleteFile() - Erro. Resposta do servidor não recebida." << endl;
-		mtxConn.unlock();
 		return false; }
 	if(replyReceived && serverReply->toString() == "file not found") {
 		cout << "Resposta do servidor: Arquivo não encontrado." << endl;
-		mtxConn.unlock();
 		return false; }
 	if(replyReceived && serverReply->toString() != "removed") {
 		cout << "DClient::deleteFile() - Erro. Não foi possíve deletar o arquivo no servidor." << endl;
-		mtxConn.unlock();
 		return false; }
 	list<DFile*>::iterator it;
 	bool found = false;
@@ -367,41 +335,33 @@ bool DClient::deleteFile(string fileName)
 		if(file->getName() == fileName) { found = true; break; } }
 	if(!found) {
 		cout << "DClient::deleteFile() - Erro ao excluir. Arquivo já não constava na lista de arquivos do servidor." << endl;
-		mtxConn.unlock();
 		return false; }
 	serverFiles.erase(it);
-	mtxConn.unlock();
 	return true;
 }
 
 bool DClient::listServerFiles(PrintOption printOnScreen)
 {
-	mtxConn.lock();
 	DMessage* request = new DMessage("list");
 	bool requestSent = clientSocket->send(request);
 	if(!requestSent) {
 		cout << "DClient::listServerFiles() - Erro ao enviar requisição." << endl;
-		mtxConn.unlock();
 		return false; }
 	DMessage* serverReply = NULL;
 	bool replyReceived = clientSocket->receive(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::listServerFiles() - Erro. Resposta do servidor não recebida." << endl;
-		mtxConn.unlock();
 		return false; }
 	if(serverReply->toString() == "file list empty") {
-		cout << "Resposta do servidor: diretório vazio." << endl << "> ";
-		mtxConn.unlock();
+		if(printOnScreen == PRINT) cout << "Resposta do servidor: diretório vazio." << endl << "> ";
 		return true; }
 	if(serverReply->toString().substr(0,9) != "list size") {
 		cout << "DClient::listServerFiles() - Erro. Servidor mandou mensagem desconhecida." << endl;
-		mtxConn.unlock();
 		return false; }
 	DMessage* confirm = new DMessage("confirm");
 	bool confirmSent = clientSocket->send(confirm);
 	if(!confirmSent) {
 		cout << "DClient::listServerFiles() - Erro ao enviar confirmação para o servidor." << endl;
-		mtxConn.unlock();
 		return false; }
 	int totalFiles = atoi(serverReply->toString().substr(10).c_str());
 	int fileDataReceived = 0;
@@ -412,7 +372,6 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 		bool fileDataReceived = clientSocket->receive(&fileData);
 		if(!fileDataReceived) {
 			cout << "DClient::listServerFiles() - Erro. Informações de arquivo não recebida." << endl;
-			mtxConn.unlock();
 			return false; }
 		string fdstr = fileData->toString();
 		string fileName = fdstr.substr(0,fdstr.find_last_of(" "));
@@ -423,7 +382,6 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 		confirmSent = clientSocket->send(confirm);
 		if(!confirmSent) {
 			cout << "DClient::listServerFiles() - Erro ao enviar confirmação para o servidor." << endl;
-			mtxConn.unlock();
 			return false; } }
 	if(printOnScreen == PRINT) {
 		cout << endl << "\e[1mArquivos no servidor:\e[0m" << endl << endl;
@@ -432,7 +390,6 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 			DFile* file = *(it);
 			cout << "\e[1m" << file->getName() << "\e[0m - " << file->printLastModified(); }
 		cout << endl << "> "; }
-	mtxConn.unlock();
 	return true;
 }
 
@@ -467,13 +424,17 @@ void DClient::synchronize()
 		DFile* cfile = findFile(&files,sfile->getName());
 		if(cfile == NULL) {
 			cout << "Fazendo download do arquivo (novo): " << sfile->getName() << "... ";
+			this->getMutex()->lock();
 			bool fileDownloaded = this->receiveFile(sfile->getName());
+			this->getMutex()->unlock();
 			if(!fileDownloaded) cout << "Erro." << endl; else cout << "Concluído." << endl; }
 		else {
 			bool fileIsEqual = sfile->isEqual(cfile);
 			if(!fileIsEqual) {
 				cout << "Fazendo download do arquivo (modificado): " << sfile->getName() << "... ";
+				this->getMutex()->lock();
 				bool fileDownloaded = this->receiveFile(sfile->getName());
+				this->getMutex()->unlock();
 				if(!fileDownloaded) cout << "Erro." << endl; else cout << "Concluído." << endl; } }
 	}
 	for(it = files.begin(); it != files.end(); it++) {
@@ -481,7 +442,9 @@ void DClient::synchronize()
 		DFile* sfile = findFile(&serverFiles,cfile->getName());
 		if(sfile == NULL) {
 			cout << "Arquivo removido do servidor. Excluindo do diretório local... ";
+			this->getMutex()->lock();
 			bool localFileRemoved = this->deleteLocalFile(cfile->getName());
+			this->getMutex()->unlock();
 			if(!localFileRemoved) cout << "Erro." << endl; else cout << "Concluído."; }
 	}
 	cout << "Sincronização concluída." << endl << endl;
@@ -491,27 +454,33 @@ void DClient::fileUpdaterDaemon()
 {
 	while(true) {
 		this_thread::sleep_for(chrono::seconds(5));
+		this->getMutex()->lock();
 		list<DFile*> oldServerFilesList = serverFiles;
 		serverFiles.clear();
 		bool serverFilesListCreated = this->listServerFiles(DONT_PRINT);
+		this->getMutex()->unlock();
 		if(!serverFilesListCreated) {
-			cout << "DClient::fileUpdaterDaemon() - Erro ao recriar lista de arquivos do servidor. Updater daemon desligado." << endl;
+			cout << "DClient::fileUpdaterDaemon() - Erro ao recriar lista de arquivos do servidor. Estado anterior restaurado." << endl;
 			serverFiles = oldServerFilesList;
-			break; }
+			continue; }
 		list<DFile*>::iterator it;
 		for(it = serverFiles.begin(); it != serverFiles.end(); it++) {
 			DFile* nfile = *(it);
 			DFile* ofile = findFile(&oldServerFilesList,nfile->getName());
 			if(ofile == NULL) {
 				cout << endl << endl << "Arquivo adicionado ao servidor por outro dispositivo.\nFazendo download..." << endl;
+				this->getMutex()->lock();
 				bool fileDownloaded = this->receiveFile(nfile->getName());
+				this->getMutex()->unlock();
 				if(!fileDownloaded) cout << "DClient::fileUpdaterDaemon() - Erro ao sincronizar cliente e servidor (erro no download do arquivo: " << nfile->getName() << ")." << endl;
 				else cout << "Download concluído: " << nfile->getName() << endl << endl << "> "; }
 			else {
 				bool fileIsEqual = ofile->isEqual(nfile);
 				if(!fileIsEqual) {
 					cout << endl << endl << "Arquivo modificado no servidor por outro dispositivo.\nFazendo download da versão mais recente..." << endl;
+					this->getMutex()->lock();
 					bool fileDownloaded = this->receiveFile(nfile->getName());
+					this->getMutex()->unlock();
 					if(!fileDownloaded) cout << "DClient::fileUpdaterDaemon() - Erro ao sincronizar cliente e servidor (erro no download do arquivo: " << nfile->getName() << ")." << endl;
 					else cout << "Download concluído: " << nfile->getName() << endl << endl << "> "; } } }
 		for(it = oldServerFilesList.begin(); it != oldServerFilesList.end(); it++) {
@@ -519,7 +488,9 @@ void DClient::fileUpdaterDaemon()
 			DFile* afile = findFile(&serverFiles,ofile->getName());
 			if(afile == NULL) {
 				cout << endl << endl << "Arquivo excluído do servidor por outro dispositivo.\nRemovendo cópia local..." << endl;
+				this->getMutex()->lock();
 				bool localFileRemoved = this->deleteLocalFile(ofile->getName());
+				this->getMutex()->unlock();
 				if(!localFileRemoved) cout << "DCliente::fileUpdaterDaemon() - Erro ao sincronizar cliente e servidor (falha ao remover arquivo: " << ofile->getName() << ")." << endl;
 				else cout << "Arquivo removido: " << ofile->getName() << "." << endl << endl << "> "; } }
 		cout.flush();

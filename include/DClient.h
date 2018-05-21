@@ -31,10 +31,8 @@ private:
 	string clientName;
 	string homeDir;
 	bool isWorking;
-	// mutex usado pelo servidor para controle de concorrência entre clientes
+	// mutex para controle de concorrência no servidor e controle de acesso à conexão no cliente
 	mutex mtxClient;
-	// mutex que garante acesso exclusivo à conexão com o servidor (chamadas receiveFile, deleteFile, sendFile e listServerFiles são mutuamente exclusivas);
-	mutex mtxConn;
 	
 public:
 	DClient() { isWorking = false; } // OK
