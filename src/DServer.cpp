@@ -56,7 +56,9 @@ void DServer::listen()
 		if(!requestReceived) continue;
 		if(connectionRequest->toString().substr(0,7) == "connect") {
 			string clientName = connectionRequest->toString().substr(8, connectionRequest->toString().size());
+			mtxClientsListUpdate.lock();
 			DClient* client = findClient(clientName);
+			mtxClientsListUpdate.unlock();
 			if(client == NULL) {
 				DClient* newClient = new DClient(clientName);
 				if(newClient->bad()) {
@@ -66,7 +68,9 @@ void DServer::listen()
 				string clientPath = homeDir + "/dbox-server/" + clientName;
 				bool clientPathCreated = (mkdir(clientPath.c_str(), 0777) == 0);
 				if(clientPathCreated) {
+					mtxClientsListUpdate.lock();
 					clients.push_back(newClient);
+					mtxClientsListUpdate.unlock();
 					acceptConnection(newClient, serverSocket->getSenderIp(), serverSocket->getSenderPort()); }
 				else {
 					cout << "DServer::listen() - Erro ao criar diretório para novo cliente." << endl;
@@ -321,7 +325,9 @@ void DServer::messageProcessing(DClient* client, DSocket* connection)
 		bool messageReceived = connection->receive(&message);
 		if(messageReceived) {
 			if(message->toString() == "close connection") {
+				mtxClientsListUpdate.lock();
 				bool connectionClosed = closeConnection(client,connection);
+				mtxClientsListUpdate.unlock();
 				if(connectionClosed) break;	}	 
 			if(message->toString().substr(0,7) == "receive") {
 				client->getMutex()->lock();

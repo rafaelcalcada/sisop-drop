@@ -100,7 +100,7 @@ bool DClient::connect(const char* serverAddress, int serverPort)
 	return false;
 }
 
-bool DClient::sendFile(string filePath)
+bool DClient::sendFile(string filePath, FileCopyOption option)
 {
 	ifstream file;
 	file.open(filePath, ifstream::in | ifstream::binary);
@@ -160,26 +160,25 @@ bool DClient::sendFile(string filePath)
 	if(!lmtSent) {
 		cout << "DClient::sendFile() - Erro ao informar o servidor sobre a data da última modificação do arquivo." << endl;
 		return false; }
-	ofstream fileCopy;
-	string fileCopyPath = homeDir + "/sync_dir_" + clientName + "/" + fileName;
-	fileCopy.open(fileCopyPath, ofstream::trunc | ofstream::binary);
-	if(!fileCopy.is_open()) {
-		cout << "DClient::sendFile() - Erro ao salvar cópia local no diretório do cliente." << endl;
-		return false; }
-	file.seekg(0, file.beg);
-	fileCopy << file.rdbuf();
-	fileCopy.close();
-	file.close();
-	struct utimbuf utb;
-	utb.actime = fstat.st_mtim.tv_sec;
-	utb.modtime = fstat.st_mtim.tv_sec;
-	bool modTimeChanged = (utime(fileCopyPath.c_str(),&utb) == 0);
-	if(!modTimeChanged) {
-		cout << "DClient::sendFile() - Erro. Não foi possível modificar a data da última modificação e acesso." << endl;
-		return false; }
-	;
+	if(option == COPY) {
+		ofstream fileCopy;
+		string fileCopyPath = homeDir + "/sync_dir_" + clientName + "/" + fileName;
+		fileCopy.open(fileCopyPath, ofstream::trunc | ofstream::binary);
+		if(!fileCopy.is_open()) {
+			cout << "DClient::sendFile() - Erro ao salvar cópia local no diretório do cliente." << endl;
+			return false; }
+		file.seekg(0, file.beg);
+		fileCopy << file.rdbuf();
+		fileCopy.close();
+		file.close();
+		struct utimbuf utb;
+		utb.actime = fstat.st_mtim.tv_sec;
+		utb.modtime = fstat.st_mtim.tv_sec;
+		bool modTimeChanged = (utime(fileCopyPath.c_str(),&utb) == 0);
+		if(!modTimeChanged) {
+			cout << "DClient::sendFile() - Erro. Não foi possível modificar a data da última modificação e acesso." << endl;
+			return false; } }
 	bool fileListUpdated = this->updateFilesList(fileName, "/sync_dir_" + clientName);
-	;
 	if(!fileListUpdated) {
 		cout << "DClient::sendFile() - Erro. Lista de arquivos locais não atualizada." << endl;
 		return false; }
@@ -306,10 +305,11 @@ bool DClient::deleteLocalFile(string fileName)
 	return true;
 }
 
-bool DClient::deleteFile(string fileName)
+bool DClient::deleteFile(string fileName, DeleteLocalFileOption option)
 {
-	bool localFileRemoved = this->deleteLocalFile(fileName);
-	if(!localFileRemoved) return false;
+	if(option == DELETE) {
+		bool localFileRemoved = this->deleteLocalFile(fileName);
+		if(!localFileRemoved) return false; }
 	DMessage* deleteRequest = new DMessage("delete " + fileName);
 	bool requestSent = clientSocket->send(deleteRequest);
 	if(!requestSent) {
@@ -413,9 +413,43 @@ DFile* DClient::findFile(list<DFile*>* fileList, string fileName)
 	return NULL;
 }
 
+void DClient::autoUpload()
+{
+	list<DFile*>::iterator it; int i = 0;
+	list<DFile*> serverFilesCopy = serverFiles;
+	list<DFile*> filesCopy = files;
+	for(it = filesCopy.begin(); it != filesCopy.end(); it++) {
+		DFile* cfile = *(it);
+		DFile* sfile = findFile(&serverFiles,cfile->getName());
+		if(sfile == NULL) {
+			cout << endl << "Fazendo upload do arquivo (novo): " << cfile->getName() << "... ";
+			this->getMutex()->lock();
+			bool fileUploaded = this->sendFile(homeDir + "/sync_dir_" + clientName + "/" + cfile->getName(), DONT_COPY);
+			this->getMutex()->unlock();
+			if(!fileUploaded) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; }
+		else {
+			bool fileIsEqual = cfile->isEqual(sfile);
+			if(!fileIsEqual) {
+				cout << endl << "Fazendo upload do arquivo (modificado): " << cfile->getName() << "... ";
+				this->getMutex()->lock();
+				bool fileUploaded = this->sendFile(homeDir + "/sync_dir_" + clientName + "/" + cfile->getName(), DONT_COPY);
+				this->getMutex()->unlock();
+				if(!fileUploaded) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; } }
+	}
+	for(it = serverFilesCopy.begin(); it != serverFilesCopy.end(); it++) {
+		DFile* sfile = *(it);
+		DFile* cfile = findFile(&files,sfile->getName());
+		if(cfile == NULL) {
+			cout << endl << "Arquivo removido: " << sfile->getName() << ". Excluindo do servidor... ";
+			this->getMutex()->lock();
+			bool localFileRemoved = this->deleteFile(sfile->getName(), DONT_DELETE);
+			this->getMutex()->unlock();
+			if(!localFileRemoved) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; }
+	}
+}
+
 void DClient::synchronize()
 {
-	//cout << "Sincronizando diretório local com o servidor..." << endl;
 	list<DFile*>::iterator it; int i = 0;
 	list<DFile*> serverFilesCopy = serverFiles;
 	list<DFile*> filesCopy = files;
@@ -447,13 +481,17 @@ void DClient::synchronize()
 			this->getMutex()->unlock();
 			if(!localFileRemoved) cout << "Erro." << endl << endl; else cout << "Concluído." << endl << endl; }
 	}
-	//cout << "Sincronização concluída." << endl << endl;
 }
 
 void DClient::fileUpdaterDaemon()
 {
 	while(true) {
 		this_thread::sleep_for(chrono::seconds(5));
+		this->getMutex()->lock();
+		files.clear();
+		this->fillFilesList("/sync_dir_" + clientName);
+		this->getMutex()->unlock();
+		this->autoUpload();
 		this->getMutex()->lock();
 		this->listServerFiles(DONT_PRINT);
 		this->getMutex()->unlock();

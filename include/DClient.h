@@ -20,6 +20,8 @@ using namespace std;
 #include "DFile.h"
 
 enum PrintOption { PRINT, DONT_PRINT };
+enum DeleteLocalFileOption { DELETE, DONT_DELETE };
+enum FileCopyOption { COPY, DONT_COPY };
 
 class DClient {
 	
@@ -41,6 +43,7 @@ public:
 	DFile* findFile(list<DFile*>* fileList, string fileName); // OK
 	void help(); // OK
 	void listFiles(); // OK
+	void autoUpload(); // OK
 	void synchronize(); // OK
 	void fileUpdaterDaemon(); // OK
 	bool bad() { return !isWorking; } // OK
@@ -48,9 +51,9 @@ public:
 	bool connect(const char* serverAddress, int serverPort); // OK
 	bool isConnected() { return !connections.empty(); } // OK
 	bool isConnectedFrom(struct in_addr ipAddress); // OK
-	bool sendFile(string filePath); // OK
+	bool sendFile(string filePath, FileCopyOption option); // OK
 	bool receiveFile(string fileName); // OK
-	bool deleteFile(string fileName); // OK
+	bool deleteFile(string fileName, DeleteLocalFileOption option); // OK
 	bool deleteLocalFile(string fileName); // OK
 	bool closeConnection(); // OK
 	bool fillFilesList(string basePath); // OK

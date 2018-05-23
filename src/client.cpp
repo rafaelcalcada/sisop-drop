@@ -45,7 +45,7 @@ int main(int argc, char** argv)
 			if(cmd.substr(0,6) == "upload") {
 				string filePath = cmd.substr(7);
 				client->getMutex()->lock();
-				bool fileSent = client->sendFile(filePath);
+				bool fileSent = client->sendFile(filePath, COPY);
 				client->getMutex()->unlock();
 				if(fileSent) cout << "Upload realizado com sucesso." << endl;
 				else cout << "Falha durante o upload. Tente novamente." << endl;
@@ -73,7 +73,7 @@ int main(int argc, char** argv)
 			if(cmd.substr(0,6) == "delete") {
 				string filePath = cmd.substr(7);
 				client->getMutex()->lock();
-				bool fileRemoved = client->deleteFile(filePath);
+				bool fileRemoved = client->deleteFile(filePath, DELETE);
 				client->getMutex()->unlock();
 				if(fileRemoved) cout << "Arquivo excluído com sucesso do cliente e do servidor." << endl;
 				else cout << "Falha ao excluir arquivo. Tente novamente." << endl;

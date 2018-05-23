@@ -33,6 +33,7 @@ private:
 	DSocket* serverSocket;
 	bool isWorking;
 	string homeDir;
+	mutex mtxClientsListUpdate;
 	
 public:
 	DServer(); // OK
