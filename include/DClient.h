@@ -19,6 +19,8 @@ using namespace std;
 #include "DSocket.h"
 #include "DFile.h"
 
+const int CLIENT_PORT_NUMBER = 49999;
+
 enum PrintOption { PRINT, DONT_PRINT };
 enum DeleteLocalFileOption { DELETE, DONT_DELETE };
 enum FileCopyOption { COPY, DONT_COPY };

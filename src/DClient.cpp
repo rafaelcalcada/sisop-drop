@@ -6,7 +6,9 @@ DClient::DClient(string clientName)
 	this->clientName = clientName;
 	clientSocket = new DSocket();
 	bool socketOpen = clientSocket->isOpen();
-	if(socketOpen) isWorking = true;
+	if(socketOpen) {
+		bool binded = clientSocket->bindSocket("localhost", CLIENT_PORT_NUMBER);
+		if(binded) isWorking = true; }
 	else isWorking = false;
 }
 

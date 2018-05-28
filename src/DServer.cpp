@@ -108,7 +108,7 @@ void DServer::acceptConnection(DClient* client, struct in_addr clientIp, unsigne
 			connections.push_back(newConnection);
 			bool ackSent = serverSocket->reply(new DMessage("ack " + to_string(portNumber)));
 			if(ackSent) {
-				cout << "Conexão aceita. Cliente: " << client->getName() << ". IP: " << inet_ntoa(clientIp) << ". Porta: " << clientPort << "." << endl;
+				cout << "Conexão aceita. Cliente: " << client->getName() << ". IP: " << inet_ntoa(clientIp) << ". Porta: " << ntohs(clientPort) << "." << endl;
 				break; }
 			else cout << "DServer::acceptConnection() - Tentativa " << attempts << " de conexão com o cliente fracassou. Erro ao enviar ACK." << endl; }
 		else {
