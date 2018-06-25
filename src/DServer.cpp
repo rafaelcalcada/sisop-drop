@@ -344,6 +344,8 @@ void DServer::messageProcessing(DClient* client, DSocket* connection)
 			if(message->toString() == "list") {
 				client->getMutex()->lock();
 				listFiles(client, connection, message);
-				client->getMutex()->unlock(); } }
+				client->getMutex()->unlock(); }
+			if (message->toString() == "ping")
+				connection->reply(new DMessage("ok")); }
 		else continue; }
 }

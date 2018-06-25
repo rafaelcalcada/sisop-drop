@@ -10,7 +10,7 @@ int main()
 		cout << "Houve um erro ao inicializar o servidor." << endl; }
 	else {
 		string cmd;
-		cout << "Servidor inicializado com sucesso." << endl;
+		cout << "Servidor inicializado com sucesso na porta " << SERVER_PORT << "." << endl;
 		cout << "Para desligar o servidor, digite 'quit' e pressione enter." << endl << endl;
 		std::thread listening_thread(&DServer::listen, server);
 		while(getline(cin,cmd)) {
