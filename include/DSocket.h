@@ -7,18 +7,22 @@
 
 // cabeçalhos para trabalhar com sockets
 #include <sys/types.h>
+#include <ifaddrs.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <vector>
+#include <queue>
 
 using namespace std;
 
 enum DSocketType { TCP, UDP };
 
 const int BUFFER_SIZE = 500;
+const int BACKLOG_SIZE = 100;
 
 class DSocket {
 	
@@ -34,13 +38,14 @@ private:
 public:
 	DSocket(DSocketType type = UDP); // OK
 	bool bindSocket(const char* ipAddress, int portNumber); // OK
+    bool listenSocket(); // OK
 	bool connectSocket(); // OK
-	bool DSocket acceptConnection(); // OK
+	DSocket* acceptConnection(); // OK
 	bool isOpen() { return _isOpen; } // OK
 	bool setDestination(const char* ipAddress, int portNumber); // OK
-	bool send(DMessage* message); // OK
-	bool receive(DMessage** message); // OK
-	bool reply(DMessage* message); // OK
+	bool sendMessage(DMessage* message); // OK
+	bool receiveMessage(DMessage** message); // OK
+	bool replyMessage(DMessage* message); // OK
 	bool closeSocket(); // OK
 	struct in_addr getSocketIp() { return address.sin_addr; } // OK
 	unsigned short getSocketPort() { return address.sin_port; } // OK	

@@ -7,7 +7,7 @@ DServer::DServer(string confFile)
 		bool bindOk = serverSocket->bindSocket("localhost",SERVER_PORT);
 		if(bindOk) {
 			for(int i = 0; i < MAX_CONNECTIONS; i++) ports[i] = AVAILABLE;
-			isWorking = this->initialize() && this->loadConfFile(); && this->initializeRing() }
+			isWorking = this->initialize() && this->loadConfFile(confFile) && this->initializeRing(); }
 		else {
 			cout << "DServer::DServer() - Erro. Chamada de serverSocket->bind() retornou código de erro." << endl;
 			serverSocket->closeSocket();
@@ -94,6 +94,17 @@ bool DServer::loadConfFile(string confFile)
 	return true;
 }
 
+bool DServer::validateAddress(string ip, int port)
+{
+	if ((port < 0) || (port > 65535))
+		return false;
+	else {
+		struct sockaddr_in sa;
+		return (inet_pton(AF_INET, ip.c_str(), &(sa.sin_addr)) == 1);
+	}
+	return true;
+}
+
 string DServer::getIpAddressList() {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -106,7 +117,7 @@ string DServer::getIpAddressList() {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
 			addr = inet_ntoa(sa->sin_addr);
 			if (addr != "127.0.0.1")
-				r += addr + "|"; } }
+				r += addr + string("|"); } }
 
 	freeifaddrs(ifap);
 	return r;
@@ -119,16 +130,16 @@ bool DServer::initializeRing()
 		cout << "DServer::setUpRing() - Erro. Chamada de upRingSocket->bind() retornou código de erro." << endl;
 		upRingSocket->closeSocket();
 		return false; }
-	if(!upRingSocket->listen()) {
-		cout << "DServer::setUpRing() - Erro. Chamada de upRingSocket->listen() retornou código de erro." << endl;
+	if(!upRingSocket->listenSocket()) {
+		cout << "DServer::setUpRing() - Erro. Chamada de upRingSocket->listenSocket() retornou código de erro." << endl;
 		upRingSocket->closeSocket();
 		return false; }
 	upRingConnectedSocket = NULL;
-	DownRingSocket = new DSocket(TCP);
+	downRingSocket = new DSocket(TCP);
 	isUpRingConnected = false;
 	isDownRingConnected = false;
-	filePartsRemaining = 0;
-	return true:
+	receivingFilePartsRemaining = 0;
+	return true;
 }
 
 DClient* DServer::findClient(string clientName)
@@ -143,42 +154,42 @@ DClient* DServer::findClient(string clientName)
 void DServer::coordinate()
 {
 	while(true) {
-		if (!isRingConnected)
+		if (!isUpRingConnected || !isDownRingConnected)
 			if (!connectRing())
 				cout << "DServer::coordinate() - Erro. Não foi possível estabelecer conexão em anel." << endl;
 		if (serverStatus == MASTER) {
 			if (ringMessage) {
 				DMessage* validationMessage;
-				if (upRingConnectedSocket->receive(&validationMessage)) {
-					if (validationMessage == ringMessage)
-						delete RingMessage;
-						ringMessage = NULL;
+				if (upRingConnectedSocket->receiveMessage(&validationMessage)) {
+					if (validationMessage == ringMessage) {
+						delete ringMessage;
+						ringMessage = NULL; }
 					else if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
 						cout << "DServer::coordinate() - Erro. Erro ao checar a integridade da mensagem." << endl;
 						isUpRingConnected = false; }
 					delete validationMessage; } }
-			if (!rinqQueue.empty()) {
-				if (downRingSocket->send(ringQueue.top())) {
-					delete ringQueue.top();
+			if (!ringQueue.empty()) {
+				if (downRingSocket->sendMessage(ringQueue.front())) {
+					delete ringQueue.front();
 					ringQueue.pop(); }
 				else if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-					cout << "DServer::coordinate() - Erro. downRingSocket->send() retornou código de erro. Envio será tentado novamente se a conexão estiver aberta." << endl;
+					cout << "DServer::coordinate() - Erro. downRingSocket->sendMessage() retornou código de erro. Envio será tentado novamente se a conexão estiver aberta." << endl;
 					isDownRingConnected = false; } } }
 		else if (serverStatus == SLAVE) {
 			if (!ringMessage)
-				if (upRingConnectedSocket->receive(&ringMessage))
+				if (upRingConnectedSocket->receiveMessage(&ringMessage))
 					if (!processUpdate()) {
 						cout << "DServer::coordinate() - Erro. Não foi possível processar a atualização recebida." << endl;
 						breakRing(); }
 				else if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-						cout << "DServer::coordinate() - Erro. upRingSocket->receive() retornou código de erro. Recebimento será tentado novamente se a conexão estiver aberta." << endl;
+						cout << "DServer::coordinate() - Erro. upRingSocket->receiveMessage() retornou código de erro. Recebimento será tentado novamente se a conexão estiver aberta." << endl;
 						isUpRingConnected = false; }
 			if (ringMessage)
-				if (downRingSocket->send(ringMessage))
+				if (downRingSocket->sendMessage(ringMessage)) {
 						delete ringMessage;
-						ringMessage = NULL;
+						ringMessage = NULL; }
 				else if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-					cout << "DServer::coordinate() - Erro. Chamada de downRingSocket->send() retornou código de erro. Envio será tentado novamente se a conexão estiver aberta." << endl;
+					cout << "DServer::coordinate() - Erro. Chamada de downRingSocket->sendMessage() retornou código de erro. Envio será tentado novamente se a conexão estiver aberta." << endl;
 					isDownRingConnected = false; } }
 		else if (serverStatus == OFFLINE) {
 			cout << "DServer::coordinate() - Servidor está offline." << endl;
@@ -203,10 +214,10 @@ bool DServer::connectRing()
 				cout << "DServer::connectRing() - Conectando ao servidor #" << (i + 1) << " - "
 					 << get<POS_IP>(servers[i])  << ":"
 					 << get<POS_PORT>(servers[i])  << endl;
-				downRingSocket->setDestination(get<POS_IP>servers[i], get<POS_PORT>(servers[i]));
+				//FIXME downRingSocket->setDestination(get<POS_IP>(servers[i]), get<POS_PORT>(servers[i]));
 				if (downRingSocket->connectSocket())
 					isDownRingConnected = true; }
-			id += 1 % servers.size(); }
+			i += 1 % servers.size(); }
 		if (!isDownRingConnected) {
 			cout << "DServer::connectRing() - Nenhum servidor aceitou conexão." << endl;
 			serverStatus = OFFLINE; } }
@@ -214,10 +225,10 @@ bool DServer::connectRing()
 
 int DServer::getSocketServerID(DSocket* socket)
 {
-	string thisIp = socket.getDestinationIp;
-	int thisPort = socket.getDestinationPort;
+	string thisIp = inet_ntoa(socket->getDestinationIp());
+	int thisPort = socket->getDestinationPort();
 	for (int i = 0; i < servers.size(); i++)
-		if (thisIp == get<POS_IP>(servers[i])) && (thisPort == get<POS_PORT>(servers[i]))
+		if ((thisIp == get<POS_IP>(servers[i])) && (thisPort == get<POS_PORT>(servers[i])))
 			return i;
 	return -1;
 }
@@ -225,27 +236,27 @@ int DServer::getSocketServerID(DSocket* socket)
 bool DServer::processUpdate()
 {
 	ofstream receivingFile;
-	if (filePartsRemaining > 0) {
+	if (receivingFilePartsRemaining > 0) {
 		receivingFile.open(receivingFilePath, ofstream::app | ofstream::binary);
 		receivingFile.write(ringMessage->get(),ringMessage->length());
 		receivingFile.close();
-		filePartsRemaining--; }
-	else if (ringMessage.toString().substr(0,12) == "receive file") {
-		receivingFilePath = ringMessage.toString;
+		receivingFilePartsRemaining--; }
+	else if (ringMessage->toString().substr(0,12) == "receive file") {
+		receivingFilePath = ringMessage->toString();
 		receivingFilePath = receivingFilePath.substr(receivingFilePath.find(" ")+1);
-		string fileParts = fileName;
+		string fileParts = receivingFilePath;
 		receivingFilePath = receivingFilePath.substr(receivingFilePath.find(" ")+1);
 		fileParts = fileParts.substr(0, fileParts.find(" "));
 		receivingFilePartsRemaining = stoi(fileParts);
 		receivingFile.open(receivingFilePath, ofstream::trunc | ofstream::binary);
 		receivingFile.close(); }
-	else if (ringMessage.toString().substr(0,11) == "delete file") {
-		string filePath = ringMessage.toString;
-		filePath = filePath.substr(fileName.find(" ")+1);
-		remove(filePath.c_str()) }
+	else if (ringMessage->toString().substr(0,11) == "delete file") {
+		string filePath = ringMessage->toString();
+		filePath = filePath.substr(filePath.find(" ")+1);
+		remove(filePath.c_str()); }
 	else {
-		cout << "DServer::processUpdate() - Erro. Comando \"" << ringMessage.toString.substr(0,20);
-		if (ringMessage.toString.size() > 20)
+		cout << "DServer::processUpdate() - Erro. Comando \"" << ringMessage->toString().substr(0,20);
+		if (ringMessage->toString().size() > 20)
 			cout << "...";
 		cout << "\" não identificado." << endl; }
 }
@@ -253,18 +264,18 @@ bool DServer::processUpdate()
 void DServer::breakRing()
 {
 	if (upRingSocket)
-		upRingSocket->close();
+		upRingSocket->closeSocket();
+	if (upRingConnectedSocket)
+		upRingConnectedSocket->closeSocket();
 	if (downRingSocket)
-		downRingSocket->close();
-	if (downRingConnectedSocket)
-		downRingConnectedSocket->close();
+		downRingSocket->closeSocket();
 }
 
 void DServer::listen()
 {
 	DMessage* connectionRequest = NULL;
 	while(true) {
-		bool requestReceived = serverSocket->receive(&connectionRequest);
+		bool requestReceived = serverSocket->receiveMessage(&connectionRequest);
 		if(!requestReceived) continue;
 		if(connectionRequest->toString().substr(0,7) == "connect") {
 			string clientName = connectionRequest->toString().substr(8, connectionRequest->toString().size());
@@ -275,7 +286,7 @@ void DServer::listen()
 				DClient* newClient = new DClient(clientName);
 				if(newClient->bad()) {
 					cout << "DServer::listen() - Erro ao criar um novo cliente." << endl;
-					serverSocket->reply(new DMessage("connection refused"));
+					serverSocket->replyMessage(new DMessage("connection refused"));
 					continue; }
 				string clientPath = homeDir + "/dbox-server/" + clientName;
 				bool clientPathCreated = (mkdir(clientPath.c_str(), 0777) == 0);
@@ -286,16 +297,16 @@ void DServer::listen()
 					acceptConnection(newClient, serverSocket->getSenderIp(), serverSocket->getSenderPort()); }
 				else {
 					cout << "DServer::listen() - Erro ao criar diretório para novo cliente." << endl;
-					serverSocket->reply(new DMessage("connection refused"));
+					serverSocket->replyMessage(new DMessage("connection refused"));
 					continue; }	}
 			else {
 				if(client->isConnectedFrom(serverSocket->getSenderIp())) {
 					cout << "Conexão recusada. Cliente já está conectado neste dispositivo." << endl;
-					serverSocket->reply(new DMessage("connection refused"));
+					serverSocket->replyMessage(new DMessage("connection refused"));
 					continue; }
 				else acceptConnection(client, serverSocket->getSenderIp(), serverSocket->getSenderPort()); } }
 			else if (connectionRequest->toString() == "ping")
-				serverSocket->reply(new DMessage("ok")); }
+				serverSocket->replyMessage(new DMessage("ok")); }
 }
 
 void DServer::acceptConnection(DClient* client, struct in_addr clientIp, unsigned short clientPort)
@@ -320,14 +331,14 @@ void DServer::acceptConnection(DClient* client, struct in_addr clientIp, unsigne
 			client->getConnectionsList()->push_back(newConnectionSocket);
 			thread* newConnection = new thread(&DServer::messageProcessing, this, client, newConnectionSocket);
 			connections.push_back(newConnection);
-			bool ackSent = serverSocket->reply(new DMessage("ack port" + to_string(portNumber)));
+			bool ackSent = serverSocket->replyMessage(new DMessage("ack port" + to_string(portNumber)));
 			if(ackSent) {
 				cout << "Conexão aceita. Cliente: " << client->getName() << ". IP: " << inet_ntoa(clientIp) << ". Porta: " << ntohs(clientPort) << "." << endl;
 				break; }
 			else cout << "DServer::acceptConnection() - Tentativa " << attempts << " de conexão com o cliente fracassou. Erro ao enviar ACK." << endl; }
 		else {
 			cout << "Impossível criar conexão com cliente. Servidor no limite de conexões simultâneas." << endl;
-			serverSocket->reply(new DMessage("connection refused"));
+			serverSocket->replyMessage(new DMessage("connection refused"));
 			break; } }
 	if(attempts == 3) cout << "DServer::acceptConnection() - Todas as tentativas de conexão com o cliente fracassaram." << endl;
 }
@@ -347,7 +358,7 @@ void DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 	file.open(filePath, ifstream::in | ifstream::binary);
 	if(!file.is_open()) {
 		DMessage* notFound = new DMessage("file not found");
-		connection->reply(notFound);
+		connection->replyMessage(notFound);
 		return; }
 	file.seekg(0, file.end);
 	int fileSize = file.tellg();
@@ -358,12 +369,12 @@ void DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 		cout << "DServer::sendFile() - Erro. Não foi possível obter informações sobre a data de modificação do arquivo." << endl;
 		return; }
 	DMessage* prepareToReceive = new DMessage("send ack " + to_string(fileSize));
-	bool replySent = connection->reply(prepareToReceive);
+	bool replySent = connection->replyMessage(prepareToReceive);
 	if(!replySent) {
 		cout << "DServer::sendFile() - Erro ao enviar confirmação para envio de arquivo." << endl;
 		return; }
 	DMessage* clientResponse = NULL;
-	bool clientResponseReceived = connection->receive(&clientResponse);
+	bool clientResponseReceived = connection->receiveMessage(&clientResponse);
 	if(!clientResponseReceived) {
 		cout << "DServer::sendFile() - Erro. Resposta do cliente à confirmação para envio não recebida." << endl;
 		return; }
@@ -383,12 +394,12 @@ void DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 		if(packetsSent == totalPackets) blockSize = lastPacketSize;
 		file.read(packetContent, blockSize);
 		DMessage* packet = new DMessage(packetContent,blockSize);
-		bool packetSent = connection->reply(packet);
+		bool packetSent = connection->replyMessage(packet);
 		if(!packetSent) {
 			cout << "DServer::sendFile() - Erro ao enviar pacote para o servidor. Envio interrompido." << endl;
 			return; }
 		DMessage* packetDeliveryStatus = NULL;
-		bool packetDeliveryResponseReceived = connection->receive(&packetDeliveryStatus);
+		bool packetDeliveryResponseReceived = connection->receiveMessage(&packetDeliveryStatus);
 		if(!packetDeliveryResponseReceived) {
 			cout << "DServer::sendFile() - Erro. Confirmação de entrega de pacote não recebida. Envio interrompido." << endl;
 			return; }
@@ -398,7 +409,7 @@ void DServer::sendFile(DClient* client, DSocket* connection, DMessage* message)
 			return; } }
 	file.close();
 	DMessage* lastModificationTime = new DMessage(to_string(fstat.st_mtim.tv_sec));
-	bool lmtSent = connection->reply(lastModificationTime);
+	bool lmtSent = connection->replyMessage(lastModificationTime);
 	if(!lmtSent) {
 		cout << "DServer::sendFile() - Erro ao informar o cliente sobre a data da última modificação do arquivo." << endl;
 		return; }
@@ -413,16 +424,16 @@ void DServer::deleteFile(DClient* client, DSocket* connection, DMessage* message
 	bool statSuccess = (stat(filePath.c_str(),&fstat) == 0);
 	if(!statSuccess) {
 		DMessage* notFound = new DMessage("file not found");
-		connection->reply(notFound);
+		connection->replyMessage(notFound);
 		return; }
 	bool fileRemoved = (remove(filePath.c_str()) == 0);
 	if(!fileRemoved) {
 		cout << "DServer::deleteFile() - Erro ao excluir arquivo." << endl;
 		DMessage* error = new DMessage("error");
-		connection->reply(error);
+		connection->replyMessage(error);
 		return; }
 	DMessage* removed = new DMessage("removed");
-	connection->reply(removed);
+	connection->replyMessage(removed);
 	ringQueue.push(new DMessage("delete file " + filePath));
 	client->getFilesList()->clear();
 	client->fillFilesList("/dbox-server/" + client->getName());
@@ -440,7 +451,7 @@ void DServer::receiveFile(DClient* client, DSocket* connection, DMessage* messag
 		cout << "DServer::receiveFile() - Erro ao receber arquivo. Não foi possível criar cópia local." << endl;
 		return; }
 	DMessage* serverReply = new DMessage("receive ack");
-	bool serverReplySent = connection->reply(serverReply);
+	bool serverReplySent = connection->replyMessage(serverReply);
 	if(!serverReplySent) {
 		cout << "DServer::receiveFile() - Erro ao enviar confirmação para recebimento de arquivo." << endl;
 		return; }
@@ -448,25 +459,25 @@ void DServer::receiveFile(DClient* client, DSocket* connection, DMessage* messag
 	int packetsReceived = 0;
 	int packetSize = 0;
 	DMessage* packet = NULL;
-	ringQueue.push(new DMessage("receive file " totalPackets + " " filePath));
+	ringQueue.push(new DMessage("receive file " + to_string(totalPackets) + " " + filePath));
 	while(packetsReceived < totalPackets) {
 		packetsReceived++;				
-		bool packetReceived = connection->receive(&packet);
+		bool packetReceived = connection->receiveMessage(&packet);
 		if(!packetReceived) {
 			cout << "DServer::receiveFile() - Erro ao receber pacote do arquivo. Recebimento interrompido." << endl;
 			newFile.close();
 			return; }
 		DMessage* confirmation = new DMessage("packet received");
-		bool confirmationSent = connection->reply(confirmation);
+		bool confirmationSent = connection->replyMessage(confirmation);
 		if(!confirmationSent) {
 			cout << "DServer::receiveFile() - Erro ao enviar confirmação de recebimento de pacote de dados. Recebimento interrompido." << endl;
 			newFile.close();
 			return; }
 		newFile.write(packet->get(),packet->length());
-		ringQueue.push(new DMessage(packet)); }
+		ringQueue.push(new DMessage(packet->toString())); }
 	newFile.close();
 	DMessage* lastModificationTime = NULL;
-	bool lmtReceived = connection->receive(&lastModificationTime);
+	bool lmtReceived = connection->receiveMessage(&lastModificationTime);
 	if(!lmtReceived) {
 		cout << "DServer::receiveFile() - Erro. Data da última modificação do arquivo não recebida." << endl;
 		return; }
@@ -487,13 +498,13 @@ void DServer::listFiles(DClient* client, DSocket* connection, DMessage* message)
 	int totalFiles = client->getFilesList()->size();	
 	if(totalFiles == 0) {
 		DMessage* emptyList = new DMessage("file list empty");
-		connection->reply(emptyList);
+		connection->replyMessage(emptyList);
 		return; }
 	DMessage* listSize = new DMessage("list size " + to_string(totalFiles));
-	bool replySent = connection->reply(listSize);
+	bool replySent = connection->replyMessage(listSize);
 	if(!replySent) return;
 	DMessage* clientReply = NULL;
-	bool clientReplyReceived = connection->receive(&clientReply);
+	bool clientReplyReceived = connection->receiveMessage(&clientReply);
 	if(!clientReplyReceived) return;
 	if(clientReply->toString() != "confirm") return;
 	list<DFile*>::iterator it;
@@ -501,10 +512,10 @@ void DServer::listFiles(DClient* client, DSocket* connection, DMessage* message)
 	for(it = clientFiles->begin(); it != clientFiles->end(); it++) {
 		DFile* clientFile = *(it);
 		DMessage* fileInfo = new DMessage(clientFile->getName() + " [" + to_string(clientFile->getSize()) + "," + to_string(clientFile->getLastModified()) + "]");
-		bool fileInfoSent = connection->reply(fileInfo);
+		bool fileInfoSent = connection->replyMessage(fileInfo);
 		if(!fileInfoSent) return;
 		DMessage* fileInfoSentReply = NULL;
-		bool fileInfoReceived = connection->receive(&fileInfoSentReply);
+		bool fileInfoReceived = connection->receiveMessage(&fileInfoSentReply);
 		if(!fileInfoReceived) return;
 		if(fileInfoSentReply->toString() != "confirm") return;
 	}
@@ -527,7 +538,7 @@ bool DServer::closeConnection(DClient* client, DSocket* connection)
 	if(client->isConnectedFrom(connection->getDestinationIp())) cout << "Não removido." << endl;
 	ports[ntohs(connection->getSocketPort())-SERVER_PORT-1] = AVAILABLE;
 	DMessage* closeConfirm = new DMessage("connection closed");
-	bool replySent = connection->reply(closeConfirm);
+	bool replySent = connection->replyMessage(closeConfirm);
 	if(replySent) {
 		cout << "Conexão terminada. Cliente: " << client->getName() << ". Dispositivo: " << inet_ntoa(connection->getSenderIp()) << endl;
 		connection->closeSocket();
@@ -540,7 +551,7 @@ void DServer::messageProcessing(DClient* client, DSocket* connection)
 	while(true)
 		if (serverStatus == MASTER) {
 			DMessage* message = NULL;
-			bool messageReceived = connection->receive(&message);
+			bool messageReceived = connection->receiveMessage(&message);
 			if(messageReceived) {
 				if(message->toString() == "close connection") {
 					mtxClientsListUpdate.lock();

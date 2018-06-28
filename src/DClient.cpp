@@ -81,12 +81,12 @@ bool DClient::connect(const char* serverAddress, int serverPort)
 		cout << "DClient::connect() - Erro ao configurar endereço de destino do socket do cliente." << endl;
 		return false; }
 	DMessage* connectionRequest = new DMessage("connect " + clientName);
-	bool requestSent = clientSocket->send(connectionRequest);
+	bool requestSent = clientSocket->sendMessage(connectionRequest);
 	if(!requestSent) {
 		cout << "DClient::connect() - Erro ao enviar pedido de conexão." << endl;
 		return false; }
 	DMessage* serverReply = NULL;
-	bool replyReceived = clientSocket->receive(&serverReply);
+	bool replyReceived = clientSocket->receiveMessage(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::connect() - Erro ao receber resposta do servidor." << endl;
 		return false; }
@@ -119,12 +119,12 @@ bool DClient::sendFile(string filePath, FileCopyOption option)
 		return false; }
 	string fileName = filePath.substr(filePath.find_last_of("/")+1);
 	DMessage* sendRequest = new DMessage("receive " + fileName + " " + to_string(fileSize));
-	bool requestSent = clientSocket->send(sendRequest);
+	bool requestSent = clientSocket->sendMessage(sendRequest);
 	if(!requestSent) {
 		cout << "DClient::sendFile() - Erro. Requisição de envio não enviada." << endl;
 		return false; }
 	DMessage* serverReply = NULL;
-	bool replyReceived = clientSocket->receive(&serverReply);
+	bool replyReceived = clientSocket->receiveMessage(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::sendFile() - Erro ao receber resposta da requisição." << endl;
 		return false; }
@@ -144,12 +144,12 @@ bool DClient::sendFile(string filePath, FileCopyOption option)
 		if(packetsSent == totalPackets) blockSize = lastPacketSize;
 		file.read(packetContent, blockSize);					
 		DMessage* packet = new DMessage(packetContent,blockSize);
-		bool packetSent = clientSocket->send(packet);
+		bool packetSent = clientSocket->sendMessage(packet);
 		if(!packetSent) {
 			cout << "DClient::sendFile() - Erro ao enviar pacote para o servidor. Envio interrompido." << endl;
 			return false; }
 		DMessage* packetDeliveryStatus = NULL;
-		bool packetDeliveryResponseReceived = clientSocket->receive(&packetDeliveryStatus);
+		bool packetDeliveryResponseReceived = clientSocket->receiveMessage(&packetDeliveryStatus);
 		if(!packetDeliveryResponseReceived) {
 			cout << "DClient::sendFile() - Erro. Confirmação de entrega de pacote não recebida. Envio interrompido." << endl;
 			return false; }
@@ -158,7 +158,7 @@ bool DClient::sendFile(string filePath, FileCopyOption option)
 			cout << "DClient::sendFile() - Erro. Status de entrega de pacote desconhecido." << endl;
 			return false; } }
 	DMessage* lastModificationTime = new DMessage(to_string(fstat.st_mtim.tv_sec));
-	bool lmtSent = clientSocket->send(lastModificationTime);
+	bool lmtSent = clientSocket->sendMessage(lastModificationTime);
 	if(!lmtSent) {
 		cout << "DClient::sendFile() - Erro ao informar o servidor sobre a data da última modificação do arquivo." << endl;
 		return false; }
@@ -215,12 +215,12 @@ bool DClient::updateFilesList(string newFileName, string basePath)
 bool DClient::receiveFile(string fileName)
 {
 	DMessage* receiveRequest = new DMessage("send " + fileName);
-	bool requestSent = clientSocket->send(receiveRequest);
+	bool requestSent = clientSocket->sendMessage(receiveRequest);
 	if(!requestSent) {
 		cout << "DClient::receiveFile() - Erro. Requisição de recebimento não enviada." << endl;
 		return false; }
 	DMessage* serverReply = NULL;
-	bool replyReceived = clientSocket->receive(&serverReply);
+	bool replyReceived = clientSocket->receiveMessage(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::receiveFile() - Erro. Resposta do servidor não recebida." << endl;
 		return false; }
@@ -238,7 +238,7 @@ bool DClient::receiveFile(string fileName)
 		cout << "DClient::receiveFile() - Erro ao receber arquivo. Não foi possível criar cópia local." << endl;
 		return false; }
 	DMessage* confirm = new DMessage("send ack ack");
-	bool confirmationSent = clientSocket->send(confirm);
+	bool confirmationSent = clientSocket->sendMessage(confirm);
 	if(!confirmationSent) {
 		cout << "DClient::receiveFile() - Erro. Confirmação para recebimento não enviada." << endl;
 		return false; }
@@ -248,13 +248,13 @@ bool DClient::receiveFile(string fileName)
 	DMessage* packet = NULL;
 	while(packetsReceived < totalPackets) {
 		packetsReceived++;				
-		bool packetReceived = clientSocket->receive(&packet);
+		bool packetReceived = clientSocket->receiveMessage(&packet);
 		if(!packetReceived) {
 			cout << "DClient::receiveFile() - Erro ao receber pacote do arquivo. Recebimento interrompido." << endl;
 			newFile.close();
 			return false; }
 		DMessage* confirmation = new DMessage("packet received");
-		bool confirmationSent = clientSocket->reply(confirmation);
+		bool confirmationSent = clientSocket->replyMessage(confirmation);
 		if(!confirmationSent) {
 			cout << "DClient::receiveFile() - Erro ao enviar confirmação de recebimento de pacote de dados. Recebimento interrompido." << endl;
 			newFile.close();
@@ -262,7 +262,7 @@ bool DClient::receiveFile(string fileName)
 		newFile.write(packet->get(),packet->length()); }
 	newFile.close();
 	DMessage* lastModificationTime = NULL;
-	bool lmtReceived = clientSocket->receive(&lastModificationTime);
+	bool lmtReceived = clientSocket->receiveMessage(&lastModificationTime);
 	if(!lmtReceived) {
 		cout << "DClient::receiveFile() - Erro. Data da última modificação do arquivo não recebida." << endl;
 		return false; }
@@ -313,12 +313,12 @@ bool DClient::deleteFile(string fileName, DeleteLocalFileOption option)
 		bool localFileRemoved = this->deleteLocalFile(fileName);
 		if(!localFileRemoved) return false; }
 	DMessage* deleteRequest = new DMessage("delete " + fileName);
-	bool requestSent = clientSocket->send(deleteRequest);
+	bool requestSent = clientSocket->sendMessage(deleteRequest);
 	if(!requestSent) {
 		cout << "DClient::deleteFile() - Erro. Requisição de exclusão não enviada." << endl;
 		return false; }
 	DMessage* serverReply = NULL;
-	bool replyReceived = clientSocket->receive(&serverReply);
+	bool replyReceived = clientSocket->receiveMessage(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::deleteFile() - Erro. Resposta do servidor não recebida." << endl;
 		return false; }
@@ -343,12 +343,12 @@ bool DClient::deleteFile(string fileName, DeleteLocalFileOption option)
 bool DClient::listServerFiles(PrintOption printOnScreen)
 {
 	DMessage* request = new DMessage("list");
-	bool requestSent = clientSocket->send(request);
+	bool requestSent = clientSocket->sendMessage(request);
 	if(!requestSent) {
 		cout << "DClient::listServerFiles() - Erro ao enviar requisição." << endl;
 		return false; }
 	DMessage* serverReply = NULL;
-	bool replyReceived = clientSocket->receive(&serverReply);
+	bool replyReceived = clientSocket->receiveMessage(&serverReply);
 	if(!replyReceived) {
 		cout << "DClient::listServerFiles() - Erro. Resposta do servidor não recebida." << endl;
 		return false; }
@@ -359,7 +359,7 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 		cout << "DClient::listServerFiles() - Erro. Servidor mandou mensagem desconhecida." << endl;
 		return false; }
 	DMessage* confirm = new DMessage("confirm");
-	bool confirmSent = clientSocket->send(confirm);
+	bool confirmSent = clientSocket->sendMessage(confirm);
 	if(!confirmSent) {
 		cout << "DClient::listServerFiles() - Erro ao enviar confirmação para o servidor." << endl;
 		return false; }
@@ -369,7 +369,7 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 	while(fileDataReceived < totalFiles) {
 		fileDataReceived++;
 		DMessage* fileData = NULL;
-		bool fileDataReceived = clientSocket->receive(&fileData);
+		bool fileDataReceived = clientSocket->receiveMessage(&fileData);
 		if(!fileDataReceived) {
 			cout << "DClient::listServerFiles() - Erro. Informações de arquivo não recebida." << endl;
 			return false; }
@@ -379,7 +379,7 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 		time_t lastModified = atol(fdstr.substr(fdstr.find_last_of(",")+1,fdstr.find_last_of("]")).c_str());
 		DFile* newServerFile = new DFile(fileName, fileSize, lastModified);
 		serverFiles.push_back(newServerFile);
-		confirmSent = clientSocket->send(confirm);
+		confirmSent = clientSocket->sendMessage(confirm);
 		if(!confirmSent) {
 			cout << "DClient::listServerFiles() - Erro ao enviar confirmação para o servidor." << endl;
 			return false; } }
@@ -395,10 +395,10 @@ bool DClient::listServerFiles(PrintOption printOnScreen)
 
 bool DClient::closeConnection()
 {
-	bool closeRequestSent = clientSocket->send(new DMessage("close connection"));
+	bool closeRequestSent = clientSocket->sendMessage(new DMessage("close connection"));
 	if(closeRequestSent) {		
 		DMessage* serverReply = NULL;
-		bool serverReplyReceived = clientSocket->receive(&serverReply);
+		bool serverReplyReceived = clientSocket->receiveMessage(&serverReply);
 		if(serverReplyReceived && serverReply->toString() == "connection closed") {
 			bool clientSocketClosed = clientSocket->closeSocket();
 			return clientSocketClosed; }

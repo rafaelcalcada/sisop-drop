@@ -139,8 +139,8 @@ bool DFrontEnd::connectServer()
 		serverFacedSocket->setDestination(get<POS_IP>servers[i], get<POS_PORT>(servers[i]));
 		for (int j = 0; j < MAX_RETRIES; j++) {
 			cout << ".";
-			serverFacedSocket->send(ping);
-			if (serverFacedSocket->receive(&reply) && (reply->toString() =="OK" )) {
+			serverFacedSocket->sendMessage(ping);
+			if (serverFacedSocket->receiveMessage(&reply) && (reply->toString() =="OK" )) {
 				cout << " OK" << endl;
 				saveReceivedServerMessage(reply);
 				return true; } }
@@ -152,9 +152,9 @@ bool DFrontEnd::connectServer()
 bool DFrontEnd::sendReceiveFromServer()
 {
 	for (int i = 0; i < MAX_RETRIES; i++) {
-		if (serverFacedSocket->send(clientCachedMessage)) {
+		if (serverFacedSocket->sendMessage(clientCachedMessage)) {
 			DMessage* message = NULL;
-			if (serverFacedSocket->receive(&message)) {
+			if (serverFacedSocket->receiveMessage(&message)) {
 				if (message->toString().substr(0,8) == "ack port") {
 					int newServerPort = atoi(serverReply->toString().substr(4).c_str());
 					clientPortOffset = newServerPort - get<POS_PORT>servers[currentServer];
@@ -179,7 +179,7 @@ bool DFrontEnd::receiveFromClient()
 {
 	DMessage* message = NULL;
 	bool retry = true;
-	while (!clientFacedSocket->receive(&message)) {
+	while (!clientFacedSocket->receiveMessage(&message)) {
 		if ((errno != EAGAIN) || (errno != EWOULDBLOCK)) {
 			cout << "DFrontEnd::receiveFromClient() - Erro. Recebimento de mensagem retornou erro (" << errno << ")." << endl;
 			if (message)
@@ -194,7 +194,7 @@ bool DFrontEnd::receiveFromClient()
 
 void DFrontEnd::sendToClient()
 {
-	if (!clientFacedSocket->send(serverCachedMessage))
+	if (!clientFacedSocket->sendMessage(serverCachedMessage))
 		cout << "DFrontEnd::sendToClient() - Erro. Envio de mensagem retornou erro (" << errno << ")." << endl;
 }
 
