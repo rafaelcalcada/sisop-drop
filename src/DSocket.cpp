@@ -1,15 +1,33 @@
 #include "../include/DSocket.h"
 
-DSocket::DSocket()
+DSocket::DSocket(DSocketType type = UDP)
 {
-	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	struct timeval timeout;      
-    timeout.tv_sec = 10;
-    timeout.tv_usec = 0;
-    if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) cout << "Erro ao estabelecer timeout para receive." << endl;
-    if(setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) cout << "Erro ao estabelecer timeout para send." << endl;
-	if(sock == -1) _isOpen = false;
-	else _isOpen = true;
+	socketType = type;
+	if (type == UDP)
+		sock = socket(AF_INET, SOCK_DGRAM, 0);
+	else if (type == TCP)
+		sock = socket(AF_INET, SOCK_STREAM, 0);
+	else {
+		_isOpen = false;
+		return
+	}
+	if (sock == -1)
+		_isOpen = false;
+	else {
+		_isOpen = true;
+		struct timeval timeout;
+		timeout.tv_sec = 10;
+		timeout.tv_usec = 0;
+		if(setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) cout << "Erro ao estabelecer timeout para receive." << endl;
+		if(setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) cout << "Erro ao estabelecer timeout para send." << endl; }
+}
+
+DSocket::DSocket(int newSocket, sockaddr_in newAddress, sockaddr_in newDestAddress) {
+	address = newAddress;
+	destAddress = newDestAddress;
+	sock = newSocket;
+	socketType = TCP;
+	_isOpen = true;
 }
 
 bool DSocket::bindSocket(const char* ipAddress, int portNumber)
@@ -27,6 +45,20 @@ bool DSocket::bindSocket(const char* ipAddress, int portNumber)
 		cout << "DSocket::bind() - Chamada bind() retornou código de erro." << endl;
 		this->closeSocket();
 		return false; }
+}
+
+bool DSocket::connectSocket() {
+	return (sock->connect() != --1);
+}
+
+DSocket DSocket::acceptConnection() {
+	int serverAddrSize;
+	struct sockaddr_in serverAddress;
+	int s = accept(sock, &serverAddress, serverAddrSize);
+	if (s == -1)
+		return NULL;
+	else
+		return new DSocket(s, address, serverAddress);
 }
 
 bool DSocket::closeSocket()
@@ -53,14 +85,24 @@ bool DSocket::setDestination(const char* ipAddress, int portNumber)
 
 bool DSocket::send(DMessage* message)
 {
-	int flag = sendto(sock, (const void*) message->get(), (size_t) message->length(), 0, (struct sockaddr *) &destAddress, sizeof(struct sockaddr));
+	if (socketType == UDP)
+		int flag = sendto(sock, (const void*) message->get(), (size_t) message->length(), 0, (struct sockaddr *) &destAddress, sizeof(struct sockaddr));
+	else if (socketType == TCP)
+		int flag = send(sock, (const void*) message->get(), (size_t) message->length(), 0);
+	else
+		return false;
 	if(flag < 0) return false;
-	else return true;
+	else return true; }
 }
 
 bool DSocket::reply(DMessage* message)
 {
-	int flag = sendto(sock, (const void*) message->get(), (size_t) message->length(), 0, (struct sockaddr *) &senderAddress, sizeof(struct sockaddr));
+	if (socketType == UDP)
+		int flag = sendto(sock, (const void*) message->get(), (size_t) message->length(), 0, (struct sockaddr *) &senderAddress, sizeof(struct sockaddr));
+	else if (socketType == TCP)
+		int flag = send(sock, (const void*) message->get(), (size_t) message->length(), 0);
+	else
+		return false;
 	if(flag < 0) return false;
 	else return true;
 }
@@ -68,10 +110,14 @@ bool DSocket::reply(DMessage* message)
 bool DSocket::receive(DMessage** message) {
 	char* msgBuffer = new char[BUFFER_SIZE];
 	socklen_t sockAddressSize = sizeof(struct sockaddr);
-	int msgSize = recvfrom(sock, (void*) msgBuffer, BUFFER_SIZE, 0, (struct sockaddr *) &senderAddress, &sockAddressSize);
+	if (socketType == UDP)
+		int msgSize = recvfrom(sock, (void*) msgBuffer, BUFFER_SIZE, 0, (struct sockaddr *) &senderAddress, &sockAddressSize);
+	else if (socketType == TCP)
+		int msgSize = recv(sock, (void*) msgBuffer, BUFFER_SIZE, 0);
+	else
+		return false;
 	if(msgSize < 0) return false;
 	else {
 		*message = new DMessage(msgBuffer, msgSize);
-		return true;
-	}
+		return true; }
 }

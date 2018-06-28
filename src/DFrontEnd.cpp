@@ -9,6 +9,7 @@ DFrontEnd::DFrontEnd(string confFile)
 	clientReceivedBytes = 0;
 	serverCachedMessage = NULL;
 	clientCachedMessage = NULL;
+	clientPortOffset = 0;
 
 	isWorking = loadConfFile(confFile)
 			 && initServerFacedSocket()
@@ -116,10 +117,14 @@ void DFrontEnd::mainLoop()
 			connectServer();
 		while (!sendReceiveFromServer()) {
 			cout << "DFrontEnd::mainLoop() - Erro. Envio de mensagem para o servidor falhou. Iniciando reconexão." << endl;
+			if (clientPortOffset > 0)
+				serverFacedSocket->setDestination(get<POS_IP>servers[currentServer], get<POS_PORT>servers[currentServer]);
 			while (!connectServer()) {
 				cout << "DFrontEnd::mainLoop() - Erro. chamada de connectServer encontrou erro." << endl
 					 << "Pressione qualquer tecla para tentar a reconexão." << endl;
-				getchar(); } }
+				getchar(); }
+				if (clientPortOffset > 0)
+					serverFacedSocket->setDestination(get<POS_IP>servers[currentServer], (get<POS_PORT>servers[currentServer] + clientPortOffset)); }
 		sendToClient(); } }
 
 bool DFrontEnd::connectServer()
@@ -128,9 +133,10 @@ bool DFrontEnd::connectServer()
 	DMessage* ping = new DMessage("ping");
 	DMessage* reply = NULL;
 	for (int i = 0; i < servers.size(); i++) {
-		cout << "DFrontEnd::connectServer() - Conectando ao servidor #" << (currentServer + 1) << " - "
-			 << get<POS_IP>(servers[currentServer])  << ":"
-			 << get<POS_PORT>(servers[currentServer])  << endl;
+		cout << "DFrontEnd::connectServer() - Conectando ao servidor #" << (i + 1) << " - "
+			 << get<POS_IP>(servers[i])  << ":"
+			 << get<POS_PORT>(servers[i])  << endl;
+		serverFacedSocket->setDestination(get<POS_IP>servers[i], get<POS_PORT>(servers[i]));
 		for (int j = 0; j < MAX_RETRIES; j++) {
 			cout << ".";
 			serverFacedSocket->send(ping);
@@ -149,6 +155,15 @@ bool DFrontEnd::sendReceiveFromServer()
 		if (serverFacedSocket->send(clientCachedMessage)) {
 			DMessage* message = NULL;
 			if (serverFacedSocket->receive(&message)) {
+				if (message->toString().substr(0,8) == "ack port") {
+					int newServerPort = atoi(serverReply->toString().substr(4).c_str());
+					clientPortOffset = newServerPort - get<POS_PORT>servers[currentServer];
+					serverFacedSocket->setDestination(get<POS_IP>servers[currentServer], newServerPort);
+					delete message;
+					message = new DMessage("ack port" + to_string(FRONT_END_CLIENT_FACED_PORT)); }
+				else if (message->toString() == "connection closed")
+					clientPortOffset = 0;
+					serverFacedSocket->setDestination(get<POS_IP>servers[currentServer], get<POS_PORT>servers[currentServer]);
 				saveReceivedServerMessage(message);
 				return true; }
 			else {

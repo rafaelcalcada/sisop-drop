@@ -33,6 +33,7 @@ private:
 	long clientReceivedBytes;
 	DMessage* serverCachedMessage;
 	DMessage* clientCachedMessage;
+	int clientPortOffset;
 	
 	bool loadConfFile(string confFile);
 	bool validateAddress(string ip, int port);

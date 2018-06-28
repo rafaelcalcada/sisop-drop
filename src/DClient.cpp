@@ -93,7 +93,7 @@ bool DClient::connect(const char* serverAddress, int serverPort)
 	if(serverReply->toString() == "connection refused") {
 		cout << "Conexão recusada pelo servidor." << endl;
 		return false; }
-	if(serverReply->toString().substr(0,3) == "ack") {
+	if(serverReply->toString().substr(0,8) == "ack port") {
 		int newServerPort = atoi(serverReply->toString().substr(4).c_str());
 		bool serverPortChanged = clientSocket->setDestination(serverAddress,newServerPort);
 		if(serverPortChanged) {

@@ -16,6 +16,8 @@
 
 using namespace std;
 
+enum DSocketType { TCP, UDP };
+
 const int BUFFER_SIZE = 500;
 
 class DSocket {
@@ -23,13 +25,17 @@ class DSocket {
 private:
 	int sock;
 	struct sockaddr_in address;
-	struct sockaddr_in senderAddress;	
+	struct sockaddr_in senderAddress;
 	struct sockaddr_in destAddress;
 	bool _isOpen;
+	DSocketType socketType;
+	DSocket(int newSocket, sockaddr_in newAddress, sockaddr_in newDestAddress); // OK
 	
 public:
-	DSocket(); // OK
+	DSocket(DSocketType type = UDP); // OK
 	bool bindSocket(const char* ipAddress, int portNumber); // OK
+	bool connectSocket(); // OK
+	bool DSocket acceptConnection(); // OK
 	bool isOpen() { return _isOpen; } // OK
 	bool setDestination(const char* ipAddress, int portNumber); // OK
 	bool send(DMessage* message); // OK

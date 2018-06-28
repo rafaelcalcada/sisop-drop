@@ -5,13 +5,20 @@ using namespace std;
 
 int main()
 {
-	DServer* server = new DServer();
+	if(argc != 2) {
+		cout << endl;
+		cout << "Você chamou o programa da maneira errada." << endl;
+		cout << "A forma correta é: ./server <nome-arq-conf>" << endl;
+		cout << endl;
+		return -1; }
+	DServer* server = new DServer(string(argv[1]));
 	if(server->bad()) {
 		cout << "Houve um erro ao inicializar o servidor." << endl; }
 	else {
 		string cmd;
 		cout << "Servidor inicializado com sucesso na porta " << SERVER_PORT << "." << endl;
 		cout << "Para desligar o servidor, digite 'quit' e pressione enter." << endl << endl;
+		std::thread coordination_thread(&DServer::coordinate, server);
 		std::thread listening_thread(&DServer::listen, server);
 		while(getline(cin,cmd)) {
 			if(cmd == "") continue;
