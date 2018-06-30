@@ -17,6 +17,7 @@ DFile::DFile(string fileName, unsigned long fileSize, time_t lastModified)
 bool DFile::isEqual(DFile* dfile)
 {
 	if(_fileName != dfile->getName()) return false;
+	if(_fileSize != dfile->getSize()) return false;
 	if(_lastModified != dfile->getLastModified()) return false;
 	return true;
 }

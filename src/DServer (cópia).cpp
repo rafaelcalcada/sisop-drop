@@ -241,7 +241,12 @@ void DServer::listen()
 					cout << "DServer::listen() - Erro ao criar diretório para novo cliente." << endl;
 					serverSocket->reply(new DMessage("connection refused"));
 					continue; }	}
-			else acceptConnection(client, serverSocket->getSenderIp(), serverSocket->getSenderPort()); }
+			else {
+				if(client->isConnectedFrom(serverSocket->getSenderIp())) {
+					cout << "Conexão recusada. Cliente já está conectado neste dispositivo." << endl;
+					serverSocket->reply(new DMessage("connection refused"));
+					continue; }
+				else acceptConnection(client, serverSocket->getSenderIp(), serverSocket->getSenderPort()); } }
 		else if(request->toString().substr(0,12) == "backupserver") {
 			if(this->isPrimary) {
 				DSocket* newConnectionSocket = new DSocket();
@@ -907,7 +912,6 @@ void DServer::syncWithPrimary(PrintOption option)
 		simmClient->synchronize("/dbox-server", DONT_PRINT);
 		simmClient->updateReverse("/dbox-server");
 		simmClient->closeConnection();
-		*(client->getFilesList()) = *(simmClient->getFilesList());
 		//client->getFilesList()->clear();
 		//client->fillFilesList("/dbox-server");
 		if(option == PRINT) cout << "Cliente '" << client->getName() << "': sincronização OK." << endl;	}
